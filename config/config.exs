@@ -9,7 +9,7 @@ import Config
 
 config :share_circle,
   ecto_repos: [ShareCircle.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime_usec, binary_id: true]
 
 # Configure the endpoint
 config :share_circle, ShareCircleWeb.Endpoint,
