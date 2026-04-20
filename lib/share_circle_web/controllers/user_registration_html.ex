@@ -1,0 +1,5 @@
+defmodule ShareCircleWeb.UserRegistrationHTML do
+  use ShareCircleWeb, :html
+
+  embed_templates "user_registration_html/*"
+end

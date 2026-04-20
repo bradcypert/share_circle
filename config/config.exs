@@ -7,6 +7,19 @@
 # General application configuration
 import Config
 
+config :share_circle, :scopes,
+  user: [
+    default: true,
+    module: ShareCircle.Accounts.Scope,
+    assign_key: :current_scope,
+    access_path: [:user, :id],
+    schema_key: :user_id,
+    schema_type: :binary_id,
+    schema_table: :users,
+    test_data_fixture: ShareCircle.AccountsFixtures,
+    test_setup_helper: :register_and_log_in_user
+  ]
+
 config :share_circle,
   ecto_repos: [ShareCircle.Repo],
   generators: [timestamp_type: :utc_datetime_usec, binary_id: true]
