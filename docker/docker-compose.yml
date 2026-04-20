@@ -1,0 +1,65 @@
+services:
+  app:
+    image: ghcr.io/sharecircle/share_circle:${VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PHX_SERVER: "true"
+      DEPLOYMENT_MODE: self_hosted
+      DATABASE_URL: postgres://sharecircle:${DB_PASSWORD}@postgres:5432/sharecircle
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      PHX_HOST: ${PHX_HOST:-localhost}
+      STORAGE_ADAPTER: local
+      STORAGE_LOCAL_PATH: /data/media
+      MAIL_ADAPTER: ${MAIL_ADAPTER:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      BILLING_ADAPTER: noop
+    volumes:
+      - media:/data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    image: ghcr.io/sharecircle/share_circle:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      DEPLOYMENT_MODE: self_hosted
+      DATABASE_URL: postgres://sharecircle:${DB_PASSWORD}@postgres:5432/sharecircle
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE}
+      STORAGE_ADAPTER: local
+      STORAGE_LOCAL_PATH: /data/media
+      MAIL_ADAPTER: ${MAIL_ADAPTER:-smtp}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      BILLING_ADAPTER: noop
+    volumes:
+      - media:/data/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sharecircle
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: sharecircle
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sharecircle"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  media:
+  postgres_data:
