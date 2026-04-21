@@ -41,6 +41,7 @@ defmodule ShareCircleWeb.Endpoint do
     cookie_key: "request_logger"
 
   plug Plug.RequestId
+  plug OpenApiSpex.Plug.PutApiSpec, module: ShareCircleWeb.Api.V1.ApiSpec
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
   plug Plug.Parsers,

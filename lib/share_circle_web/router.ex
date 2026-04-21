@@ -13,6 +13,10 @@ defmodule ShareCircleWeb.Router do
     plug :fetch_current_scope_for_user
   end
 
+  pipeline :accepts_json do
+    plug :accepts, ["html", "json"]
+  end
+
   pipeline :api do
     plug :accepts, ["json"]
     plug ShareCircleWeb.Plugs.AuthenticateApi
@@ -31,6 +35,14 @@ defmodule ShareCircleWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+  end
+
+  # OpenAPI spec and Swagger UI — no auth required
+  scope "/api/v1" do
+    pipe_through [:accepts_json]
+
+    get "/openapi.json", OpenApiSpex.Plug.RenderSpec, []
+    get "/docs", OpenApiSpex.Plug.SwaggerUI, path: "/api/v1/openapi.json"
   end
 
   scope "/api/v1", ShareCircleWeb.Api.V1 do
