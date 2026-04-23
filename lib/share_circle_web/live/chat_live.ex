@@ -2,40 +2,59 @@ defmodule ShareCircleWeb.ChatLive do
   use ShareCircleWeb, :live_view
 
   alias ShareCircle.Chat
+  alias ShareCircle.Families
   alias ShareCircle.PubSub
 
   @impl true
   def mount(%{"family_id" => family_id} = params, _session, socket) do
-    scope = socket.assigns.current_scope
-    conversations = Chat.list_conversations(scope)
+    user = socket.assigns.current_scope.user
 
-    conversation_id = params["conversation_id"]
+    case ShareCircle.Families.get_membership_for_user(family_id, user.id) do
+      nil ->
+        {:ok, push_navigate(socket, to: ~p"/families")}
 
-    {active_conv, messages} =
-      case conversation_id do
-        nil ->
-          # Default to first conversation (usually family-wide)
-          case conversations do
-            [first | _] -> load_conversation(scope, first.id)
-            [] -> {nil, []}
+      %{family: family} = membership ->
+        scope = %{socket.assigns.current_scope | family: family, membership: membership}
+        conversations = Chat.list_conversations(scope)
+
+        conversation_id = params["conversation_id"]
+
+        {active_conv, messages} =
+          case conversation_id do
+            nil ->
+              case conversations do
+                [first | _] -> load_conversation(scope, first.id)
+                [] -> {nil, []}
+              end
+
+            id ->
+              load_conversation(scope, id)
           end
 
-        id ->
-          load_conversation(scope, id)
-      end
+        if active_conv do
+          PubSub.subscribe(PubSub.conversation_topic(active_conv.id))
+        end
 
-    if active_conv do
-      PubSub.subscribe(PubSub.conversation_topic(active_conv.id))
+        family_members =
+          scope
+          |> Families.list_members()
+          |> Enum.reject(&(&1.user_id == user.id))
+
+        {:ok,
+         socket
+         |> assign(:current_scope, scope)
+         |> assign(:family_id, family_id)
+         |> assign(:conversations, conversations)
+         |> assign(:active_conv, active_conv)
+         |> assign(:messages, messages)
+         |> assign(:message_form, to_form(%{"body" => ""}, as: "message"))
+         |> assign(:typing_users, [])
+         |> assign(:family_members, family_members)
+         |> assign(:new_conv_open, false)
+         |> assign(:new_conv_kind, "direct")
+         |> assign(:new_conv_name, "")
+         |> assign(:new_conv_member_ids, [])}
     end
-
-    {:ok,
-     socket
-     |> assign(:family_id, family_id)
-     |> assign(:conversations, conversations)
-     |> assign(:active_conv, active_conv)
-     |> assign(:messages, messages)
-     |> assign(:message_form, to_form(%{"body" => ""}, as: "message"))
-     |> assign(:typing_users, [])}
   end
 
   @impl true
@@ -67,6 +86,64 @@ defmodule ShareCircleWeb.ChatLive do
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_event("toggle_new_conv", _params, socket) do
+    {:noreply,
+     socket
+     |> assign(:new_conv_open, !socket.assigns.new_conv_open)
+     |> assign(:new_conv_kind, "direct")
+     |> assign(:new_conv_name, "")
+     |> assign(:new_conv_member_ids, [])}
+  end
+
+  def handle_event("set_new_conv_kind", %{"kind" => kind}, socket) do
+    {:noreply, assign(socket, new_conv_kind: kind, new_conv_member_ids: [])}
+  end
+
+  def handle_event("update_new_conv_name", %{"value" => name}, socket) do
+    {:noreply, assign(socket, :new_conv_name, name)}
+  end
+
+  def handle_event("toggle_new_conv_member", %{"id" => id}, socket) do
+    current = socket.assigns.new_conv_member_ids
+
+    updated =
+      if socket.assigns.new_conv_kind == "direct" do
+        if current == [id], do: [], else: [id]
+      else
+        if id in current, do: List.delete(current, id), else: [id | current]
+      end
+
+    {:noreply, assign(socket, :new_conv_member_ids, updated)}
+  end
+
+  def handle_event("create_conversation", _params, socket) do
+    scope = socket.assigns.current_scope
+    kind = socket.assigns.new_conv_kind
+    member_ids = socket.assigns.new_conv_member_ids
+
+    attrs =
+      case kind do
+        "direct" -> %{"kind" => "direct", "member_user_ids" => member_ids}
+        "group" -> %{"kind" => "group", "name" => socket.assigns.new_conv_name, "member_user_ids" => member_ids}
+      end
+
+    case Chat.create_conversation(scope, attrs) do
+      {:ok, conv} ->
+        conversations = Chat.list_conversations(scope)
+
+        {:noreply,
+         socket
+         |> assign(:conversations, conversations)
+         |> assign(:new_conv_open, false)
+         |> assign(:new_conv_member_ids, [])
+         |> assign(:new_conv_name, "")
+         |> push_patch(to: ~p"/families/#{socket.assigns.family_id}/chat/#{conv.id}")}
+
+      {:error, _} ->
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("send_message", %{"message" => %{"body" => body}}, socket) do
     scope = socket.assigns.current_scope
     conv = socket.assigns.active_conv

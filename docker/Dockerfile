@@ -54,8 +54,10 @@ WORKDIR /app
 RUN chown nobody /app
 
 COPY --from=builder --chown=nobody:root /app/_build/prod/rel/share_circle ./
+COPY --chown=nobody:root docker/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 USER nobody
 
-ENTRYPOINT ["/app/bin/share_circle"]
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["start"]

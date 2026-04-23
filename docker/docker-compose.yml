@@ -28,6 +28,7 @@ services:
     image: ghcr.io/sharecircle/share_circle:${VERSION:-latest}
     restart: unless-stopped
     environment:
+      SKIP_MIGRATIONS: "true"
       DEPLOYMENT_MODE: self_hosted
       DATABASE_URL: postgres://sharecircle:${DB_PASSWORD}@postgres:5432/sharecircle
       SECRET_KEY_BASE: ${SECRET_KEY_BASE}

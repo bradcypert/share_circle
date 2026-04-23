@@ -70,7 +70,9 @@ defmodule ShareCircle.MixProject do
       {:open_api_spex, "~> 3.21"},
       {:oban, "~> 2.18"},
       {:vix, "~> 0.26"},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.13", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end
 
@@ -98,6 +100,8 @@ defmodule ShareCircle.MixProject do
         "deps.unlock --unused",
         "format",
         "credo --strict",
+        "sobelow --config",
+        "deps.audit",
         "test"
       ]
     ]

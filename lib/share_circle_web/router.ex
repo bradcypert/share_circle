@@ -9,7 +9,20 @@ defmodule ShareCircleWeb.Router do
     plug :fetch_live_flash
     plug :put_root_layout, html: {ShareCircleWeb.Layouts, :root}
     plug :protect_from_forgery
-    plug :put_secure_browser_headers
+    plug :put_secure_browser_headers, %{
+      "content-security-policy" =>
+        "default-src 'self'; " <>
+          "script-src 'self' 'unsafe-inline'; " <>
+          "style-src 'self' 'unsafe-inline'; " <>
+          "img-src 'self' data: blob:; " <>
+          "media-src 'self' blob:; " <>
+          "connect-src 'self' ws: wss:; " <>
+          "font-src 'self'; " <>
+          "frame-ancestors 'none'; " <>
+          "upgrade-insecure-requests",
+      "referrer-policy" => "strict-origin-when-cross-origin",
+      "permissions-policy" => "camera=(), microphone=(), geolocation=()"
+    }
     plug :fetch_current_scope_for_user
   end
 
@@ -184,6 +197,8 @@ defmodule ShareCircleWeb.Router do
       live "/families/:family_id/chat", ChatLive, :index
       live "/families/:family_id/chat/:conversation_id", ChatLive, :show
       live "/families/:family_id/events", EventsLive, :index
+      live "/families/:family_id/members", MembersLive, :index
+      live "/families/:family_id/members/:user_id", ProfileLive, :index
       live "/families/:family_id/onboarding", OnboardingLive, :index
       live "/invitations/:token/accept", AcceptInvitationLive, :index
       live "/notifications", NotificationsLive, :index

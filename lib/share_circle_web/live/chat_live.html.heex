@@ -1,88 +1,194 @@
-<div class="flex h-[calc(100vh-4rem)]">
-  <%!-- Sidebar: conversation list --%>
-  <aside class="w-64 border-r border-base-300 flex flex-col overflow-hidden">
-    <div class="p-4 border-b border-base-300">
-      <h2 class="font-semibold text-base-content">Messages</h2>
-    </div>
-    <div class="flex-1 overflow-y-auto">
-      <%= for conv <- @conversations do %>
+<.app_shell current_scope={@current_scope} active_tab="chat" main_class="overflow-hidden flex flex-col">
+  <div class="flex flex-1 min-h-0">
+    <%!-- Conversation sidebar --%>
+    <aside class="w-60 border-r border-base-300 flex flex-col flex-shrink-0 bg-base-200/50 overflow-hidden">
+      <div class="px-3 py-3 border-b border-base-300 flex items-center justify-between">
+        <h2 class="text-xs font-semibold text-base-content/40 uppercase tracking-wider px-1">Conversations</h2>
         <button
-          phx-click="select_conversation"
-          phx-value-id={conv.id}
-          class={[
-            "w-full text-left px-4 py-3 hover:bg-base-200 transition-colors",
-            if(@active_conv && @active_conv.id == conv.id, do: "bg-base-200", else: "")
-          ]}
+          phx-click="toggle_new_conv"
+          class="w-6 h-6 rounded flex items-center justify-center text-base-content/40 hover:text-base-content hover:bg-base-300 transition-colors"
+          title="New conversation"
         >
-          <p class="text-sm font-medium text-base-content truncate">
-            {conversation_display_name(conv)}
-          </p>
-          <%= if conv.last_message_preview do %>
-            <p class="text-xs text-base-content/60 truncate mt-0.5">
-              {conv.last_message_preview}
-            </p>
-          <% end %>
+          <.icon name={if @new_conv_open, do: "hero-x-mark", else: "hero-pencil-square"} class="size-4" />
         </button>
-      <% end %>
-    </div>
-  </aside>
-
-  <%!-- Main chat area --%>
-  <div class="flex-1 flex flex-col overflow-hidden">
-    <%= if @active_conv do %>
-      <%!-- Header --%>
-      <div class="px-4 py-3 border-b border-base-300 flex items-center gap-3">
-        <h2 class="font-semibold text-base-content">
-          {conversation_display_name(@active_conv)}
-        </h2>
-        <span class="text-xs text-base-content/50">
-          {@active_conv.members |> length()} members
-        </span>
       </div>
 
-      <%!-- Messages --%>
-      <div class="flex-1 overflow-y-auto p-4 flex flex-col gap-3" id="messages">
-        <%= for msg <- @messages do %>
-          <div class="flex items-start gap-3">
-            <div class="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
-              <span class="text-xs font-bold text-primary">
-                {String.first(msg.author.display_name)}
-              </span>
-            </div>
-            <div>
-              <div class="flex items-baseline gap-2">
-                <span class="text-sm font-medium text-base-content">{msg.author.display_name}</span>
-                <span class="text-xs text-base-content/40">
-                  {Calendar.strftime(msg.inserted_at, "%I:%M %p")}
-                </span>
-              </div>
-              <p class="text-sm text-base-content/80 mt-0.5">{msg.body}</p>
-            </div>
+      <%!-- New conversation form --%>
+      <%= if @new_conv_open do %>
+        <div class="border-b border-base-300 bg-base-100 p-3 space-y-3">
+          <%!-- Kind toggle --%>
+          <div class="flex gap-1 bg-base-200 rounded-md p-0.5">
+            <button
+              phx-click="set_new_conv_kind"
+              phx-value-kind="direct"
+              class={[
+                "flex-1 text-xs py-1 rounded transition-colors",
+                if(@new_conv_kind == "direct",
+                  do: "bg-base-100 text-base-content font-medium shadow-sm",
+                  else: "text-base-content/50 hover:text-base-content"
+                )
+              ]}
+            >
+              Direct
+            </button>
+            <button
+              phx-click="set_new_conv_kind"
+              phx-value-kind="group"
+              class={[
+                "flex-1 text-xs py-1 rounded transition-colors",
+                if(@new_conv_kind == "group",
+                  do: "bg-base-100 text-base-content font-medium shadow-sm",
+                  else: "text-base-content/50 hover:text-base-content"
+                )
+              ]}
+            >
+              Group
+            </button>
           </div>
+
+          <%!-- Group name input --%>
+          <%= if @new_conv_kind == "group" do %>
+            <input
+              type="text"
+              phx-keyup="update_new_conv_name"
+              value={@new_conv_name}
+              placeholder="Group name"
+              class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-xs text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30"
+            />
+          <% end %>
+
+          <%!-- Member picker --%>
+          <div class="space-y-0.5 max-h-36 overflow-y-auto">
+            <p class="text-[10px] font-semibold text-base-content/35 uppercase tracking-wider px-1 pb-1">
+              {if @new_conv_kind == "direct", do: "Message", else: "Add members"}
+            </p>
+            <%= for m <- @family_members do %>
+              <button
+                phx-click="toggle_new_conv_member"
+                phx-value-id={m.user_id}
+                class={[
+                  "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left transition-colors",
+                  if(m.user_id in @new_conv_member_ids,
+                    do: "bg-primary/10 text-base-content",
+                    else: "text-base-content/70 hover:bg-base-200"
+                  )
+                ]}
+              >
+                <div class="w-5 h-5 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <span class="text-[10px] font-bold text-primary">
+                    {String.first(m.user.display_name || m.user.email)}
+                  </span>
+                </div>
+                <span class="text-xs truncate">{m.user.display_name || m.user.email}</span>
+                <%= if m.user_id in @new_conv_member_ids do %>
+                  <.icon name="hero-check" class="size-3 text-primary ml-auto flex-shrink-0" />
+                <% end %>
+              </button>
+            <% end %>
+          </div>
+
+          <%!-- Submit --%>
+          <button
+            phx-click="create_conversation"
+            disabled={
+              @new_conv_member_ids == [] or
+                (@new_conv_kind == "group" and String.trim(@new_conv_name) == "")
+            }
+            class="w-full btn btn-primary btn-xs rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {if @new_conv_kind == "direct", do: "Open chat", else: "Create group"}
+          </button>
+        </div>
+      <% end %>
+
+      <div class="flex-1 overflow-y-auto py-1">
+        <%= for conv <- @conversations do %>
+          <button
+            phx-click="select_conversation"
+            phx-value-id={conv.id}
+            class={[
+              "w-full text-left px-4 py-2.5 transition-colors",
+              if(@active_conv && @active_conv.id == conv.id,
+                do: "bg-base-300 text-base-content",
+                else: "text-base-content/65 hover:bg-base-300/50 hover:text-base-content"
+              )
+            ]}
+          >
+            <p class="text-sm font-medium truncate">{conversation_display_name(conv)}</p>
+            <%= if conv.last_message_preview do %>
+              <p class="text-xs text-base-content/40 truncate mt-0.5">{conv.last_message_preview}</p>
+            <% end %>
+          </button>
         <% end %>
       </div>
+    </aside>
 
-      <%!-- Typing indicator --%>
-      <%= if @typing_users != [] do %>
-        <p class="px-4 text-xs text-base-content/50 italic">Someone is typing...</p>
+    <%!-- Message area --%>
+    <div class="flex-1 flex flex-col overflow-hidden">
+      <%= if @active_conv do %>
+        <%!-- Conversation header --%>
+        <div class="px-5 py-3.5 border-b border-base-300 flex items-center gap-3 flex-shrink-0">
+          <div>
+            <h2 class="text-sm font-semibold text-base-content">
+              {conversation_display_name(@active_conv)}
+            </h2>
+            <p class="text-xs text-base-content/40">
+              {@active_conv.members |> length()} members
+            </p>
+          </div>
+        </div>
+
+        <%!-- Messages --%>
+        <div class="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4" id="messages">
+          <%= for msg <- @messages do %>
+            <div class="flex items-start gap-3">
+              <div class="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span class="text-xs font-semibold text-primary">
+                  {String.first(msg.author.display_name || "?")}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-baseline gap-2">
+                  <span class="text-sm font-semibold text-base-content">{msg.author.display_name}</span>
+                  <span class="text-xs text-base-content/35">
+                    {Elixir.Calendar.strftime(msg.inserted_at, "%-I:%M %p")}
+                  </span>
+                </div>
+                <p class="text-sm text-base-content/80 mt-0.5 leading-relaxed">{msg.body}</p>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <%!-- Typing indicator --%>
+        <%= if @typing_users != [] do %>
+          <p class="px-5 py-1 text-xs text-base-content/40 italic flex-shrink-0">Someone is typing…</p>
+        <% end %>
+
+        <%!-- Message input --%>
+        <div class="px-5 py-3 border-t border-base-300 flex-shrink-0">
+          <.form for={@message_form} phx-submit="send_message" class="flex items-center gap-3">
+            <input
+              type="text"
+              name="message[body]"
+              value={Phoenix.HTML.Form.input_value(@message_form, :body)}
+              placeholder="Write a message…"
+              autocomplete="off"
+              class="flex-1 bg-base-200 border border-base-300 rounded-lg px-4 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors"
+            />
+            <button
+              type="submit"
+              class="btn btn-primary btn-sm rounded-lg px-4"
+            >
+              Send
+            </button>
+          </.form>
+        </div>
+      <% else %>
+        <div class="flex-1 flex items-center justify-center">
+          <p class="text-sm text-base-content/30">Select a conversation to start chatting</p>
+        </div>
       <% end %>
-
-      <%!-- Message input --%>
-      <div class="p-4 border-t border-base-300">
-        <.form for={@message_form} phx-submit="send_message" class="flex gap-2">
-          <.input
-            field={@message_form[:body]}
-            placeholder="Type a message..."
-            class="flex-1"
-            autocomplete="off"
-          />
-          <.button type="submit">Send</.button>
-        </.form>
-      </div>
-    <% else %>
-      <div class="flex-1 flex items-center justify-center text-base-content/40">
-        Select a conversation
-      </div>
-    <% end %>
+    </div>
   </div>
-</div>
+</.app_shell>

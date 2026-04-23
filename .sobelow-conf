@@ -1,0 +1,8 @@
+[
+  verbose: false,
+  format: "txt",
+  exit: "low",
+  skip: [],
+  router: "lib/share_circle_web/router.ex",
+  ignore_modules: []
+]

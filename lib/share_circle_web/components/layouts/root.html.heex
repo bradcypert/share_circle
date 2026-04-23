@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title default="ShareCircle" suffix=" · Phoenix Framework">
+    <.live_title default="ShareCircle">
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
@@ -25,32 +25,33 @@
           setTheme(localStorage.getItem("phx:theme") || "system");
         }
         window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
         window.addEventListener("phx:set-theme", (e) => setTheme(e.target.dataset.phxTheme));
       })();
     </script>
   </head>
   <body class="bg-base-100 text-base-content min-h-screen">
-    <ul class="menu menu-horizontal w-full relative z-10 flex items-center gap-4 px-4 sm:px-6 lg:px-8 justify-end">
-      <%= if @current_scope do %>
-        <li>
-          {@current_scope.user.email}
-        </li>
-        <li>
-          <.link href={~p"/users/settings"}>Settings</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-out"} method="delete">Log out</.link>
-        </li>
-      <% else %>
-        <li>
-          <.link href={~p"/users/register"}>Register</.link>
-        </li>
-        <li>
-          <.link href={~p"/users/log-in"}>Log in</.link>
-        </li>
-      <% end %>
-    </ul>
+    <%!-- Minimal nav for auth/settings pages. Hidden by app_shell via fixed overlay. --%>
+    <nav class="border-b border-base-300 px-6 py-2.5 flex items-center justify-between">
+      <.link href={~p"/"} class="text-sm font-semibold text-base-content">ShareCircle</.link>
+      <div class="flex items-center gap-4">
+        <%= if @current_scope do %>
+          <span class="text-xs text-base-content/50">{@current_scope.user.email}</span>
+          <.link href={~p"/users/settings"} class="text-xs text-base-content/60 hover:text-base-content transition-colors">
+            Settings
+          </.link>
+          <.link href={~p"/users/log-out"} method="delete" class="text-xs text-base-content/60 hover:text-base-content transition-colors">
+            Log out
+          </.link>
+        <% else %>
+          <.link href={~p"/users/log-in"} class="text-xs text-base-content/60 hover:text-base-content transition-colors">
+            Log in
+          </.link>
+          <.link href={~p"/users/register"} class="text-xs text-base-content/60 hover:text-base-content transition-colors">
+            Register
+          </.link>
+        <% end %>
+      </div>
+    </nav>
     {@inner_content}
   </body>
 </html>

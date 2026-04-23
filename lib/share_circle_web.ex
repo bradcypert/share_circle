@@ -86,6 +86,7 @@ defmodule ShareCircleWeb do
       import Phoenix.HTML
       # Core UI components
       import ShareCircleWeb.CoreComponents
+      import ShareCircleWeb.AppComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

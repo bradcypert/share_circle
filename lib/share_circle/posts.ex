@@ -43,6 +43,24 @@ defmodule ShareCircle.Posts do
     {items, build_pagination(items, has_more)}
   end
 
+  @doc "Returns a paginated list of posts by a specific author within the family."
+  def list_posts_by_author(%Scope{family: family}, author_id, opts \\ []) do
+    limit = min(Keyword.get(opts, :limit, 25), 100)
+    cursor = Keyword.get(opts, :cursor)
+
+    query =
+      from p in Post,
+        where:
+          p.family_id == ^family.id and p.user_id == ^author_id and is_nil(p.deleted_at),
+        order_by: [desc: p.inserted_at, desc: p.id],
+        limit: ^(limit + 1),
+        preload: [:author, post_media: [media_item: :variants]]
+
+    posts = query |> apply_cursor(cursor) |> Repo.all()
+    {items, has_more} = split_page(posts, limit)
+    {items, build_pagination(items, has_more)}
+  end
+
   @doc "Loads a single post, verifying the current user is a member of the post's family."
   def get_post(%Scope{user: user}, post_id) do
     with %Post{deleted_at: nil} = post <- Repo.get_by(Post, id: post_id, deleted_at: nil),

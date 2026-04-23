@@ -1,0 +1,34 @@
+<.app_shell current_scope={@current_scope} active_tab="members">
+  <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
+    <div class="flex items-center justify-between">
+      <h1 class="text-lg font-semibold text-base-content">
+        Members
+        <span class="ml-2 text-sm font-normal text-base-content/40">
+          {length(@members)}
+        </span>
+      </h1>
+    </div>
+
+    <div class="space-y-2">
+      <%= for membership <- @members do %>
+        <.link
+          navigate={~p"/families/#{@family_id}/members/#{membership.user_id}"}
+          class="flex items-center gap-4 p-4 bg-base-100 border border-base-300 rounded-lg hover:border-base-content/20 transition-colors group"
+        >
+          <div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+            <span class="text-sm font-semibold text-primary">
+              {String.first(membership.user.display_name || membership.user.email)}
+            </span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-semibold text-base-content truncate">
+              {membership.user.display_name || membership.user.email}
+            </p>
+            <p class="text-xs text-base-content/40 capitalize">{membership.role}</p>
+          </div>
+          <.icon name="hero-chevron-right" class="size-4 text-base-content/25 group-hover:text-base-content/50 transition-colors" />
+        </.link>
+      <% end %>
+    </div>
+  </div>
+</.app_shell>
