@@ -14,6 +14,7 @@ defmodule ShareCircle.Accounts.User do
     field :display_name, :string
     field :timezone, :string, default: "UTC"
     field :locale, :string, default: "en-US"
+    field :is_admin, :boolean, default: false
     field :last_seen_at, :utc_datetime_usec
     field :deleted_at, :utc_datetime_usec
 

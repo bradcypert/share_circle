@@ -10,7 +10,9 @@ defmodule ShareCircle.Calendar do
   alias ShareCircle.Accounts.Scope
   alias ShareCircle.Calendar.{CalendarEvent, RSVP}
   alias ShareCircle.Events
+  alias ShareCircle.Families
   alias ShareCircle.Families.Policy
+  alias ShareCircle.Notifications
   alias ShareCircle.Repo
 
   # ---------------------------------------------------------------------------
@@ -73,6 +75,7 @@ defmodule ShareCircle.Calendar do
         {:ok, event} ->
           event = Repo.preload(event, [:created_by_user, :rsvps])
           Events.broadcast_to_family(family.id, :event_created, %{event: event})
+          notify_family_members_of_event(family.id, user.id, event)
           {:ok, event}
 
         {:error, changeset} ->
@@ -141,5 +144,21 @@ defmodule ShareCircle.Calendar do
   @doc "Gets the current user's RSVP for an event, or nil."
   def get_my_rsvp(%Scope{user: user}, event_id) do
     Repo.get_by(RSVP, event_id: event_id, user_id: user.id)
+  end
+
+  defp notify_family_members_of_event(family_id, actor_user_id, event) do
+    Families.list_memberships_for_family(family_id)
+    |> Enum.reject(&(&1.user_id == actor_user_id))
+    |> Enum.each(fn m ->
+      Notifications.notify(%{
+        family_id: family_id,
+        recipient_user_id: m.user_id,
+        actor_user_id: actor_user_id,
+        kind: "event_created",
+        subject_type: "CalendarEvent",
+        subject_id: event.id,
+        payload: %{preview: event.title}
+      })
+    end)
   end
 end

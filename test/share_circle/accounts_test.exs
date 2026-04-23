@@ -85,6 +85,29 @@ defmodule ShareCircle.AccountsTest do
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
     end
+
+    test "first registered user is automatically an instance admin" do
+      {:ok, first} = Accounts.register_user(valid_user_attributes())
+      assert first.is_admin == true
+    end
+
+    test "subsequent users are not admins" do
+      {:ok, _first} = Accounts.register_user(valid_user_attributes())
+      {:ok, second} = Accounts.register_user(valid_user_attributes())
+      assert second.is_admin == false
+    end
+  end
+
+  describe "make_admin!/1" do
+    test "promotes a user to admin" do
+      # Ensure at least one user exists so this one won't be auto-admin
+      _first = user_fixture()
+      {:ok, user} = Accounts.register_user(valid_user_attributes())
+      assert user.is_admin == false
+
+      updated = Accounts.make_admin!(user)
+      assert updated.is_admin == true
+    end
   end
 
   describe "sudo_mode?/2" do

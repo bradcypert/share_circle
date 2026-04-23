@@ -1,0 +1,141 @@
+<div class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+  <%!-- Header --%>
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-base-content">Admin Dashboard</h1>
+      <p class="text-sm text-base-content/50 mt-0.5">
+        Mode: <span class="font-mono">{deployment_mode()}</span>
+      </p>
+    </div>
+  </div>
+
+  <%!-- Tabs --%>
+  <div class="tabs tabs-bordered">
+    <button
+      phx-click="switch_tab"
+      phx-value-tab="families"
+      class={["tab", if(@tab == :families, do: "tab-active", else: "")]}
+    >
+      Families ({length(@families)})
+    </button>
+    <button
+      phx-click="switch_tab"
+      phx-value-tab="users"
+      class={["tab", if(@tab == :users, do: "tab-active", else: "")]}
+    >
+      Users ({length(@users)})
+    </button>
+  </div>
+
+  <%= if @tab == :families do %>
+    <div class="overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr class="text-base-content/60 text-xs uppercase">
+            <th>Name</th>
+            <th>Slug</th>
+            <th>Members</th>
+            <th>Storage</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for family <- @families do %>
+            <tr>
+              <td class="font-medium text-base-content">{family.name}</td>
+              <td class="font-mono text-xs text-base-content/60">{family.slug}</td>
+              <td class="text-base-content/80">
+                {family.member_count} / {family.member_limit}
+              </td>
+              <td class="text-base-content/80">
+                <div class="flex items-center gap-2">
+                  <span class="text-xs whitespace-nowrap">
+                    {format_bytes(family.storage_used_bytes)} / {format_bytes(family.storage_quota_bytes)}
+                  </span>
+                  <progress
+                    class="progress progress-primary w-16"
+                    value={storage_pct(family.storage_used_bytes, family.storage_quota_bytes)}
+                    max="100"
+                  ></progress>
+                </div>
+              </td>
+              <td>
+                <%= if @edit_quota == family.id do %>
+                  <.form for={@quota_form} phx-submit="save_quota" class="flex items-center gap-2">
+                    <input
+                      type="number"
+                      name="quota[storage_quota_gb]"
+                      value={@quota_form.params["storage_quota_gb"]}
+                      class="input input-bordered input-xs w-20"
+                      placeholder="GB"
+                    />
+                    <span class="text-xs text-base-content/40">GB</span>
+                    <input
+                      type="number"
+                      name="quota[member_limit]"
+                      value={@quota_form.params["member_limit"]}
+                      class="input input-bordered input-xs w-16"
+                      placeholder="members"
+                    />
+                    <span class="text-xs text-base-content/40">members</span>
+                    <button type="submit" class="btn btn-xs btn-primary">Save</button>
+                    <button type="button" phx-click="cancel_quota" class="btn btn-xs btn-ghost">Cancel</button>
+                  </.form>
+                <% else %>
+                  <button
+                    phx-click="edit_quota"
+                    phx-value-id={family.id}
+                    class="btn btn-xs btn-ghost text-base-content/60"
+                  >
+                    Edit limits
+                  </button>
+                <% end %>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+
+  <%= if @tab == :users do %>
+    <div class="overflow-x-auto">
+      <table class="table table-zebra w-full">
+        <thead>
+          <tr class="text-base-content/60 text-xs uppercase">
+            <th>Name</th>
+            <th>Email</th>
+            <th>Joined</th>
+            <th>Admin</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <%= for user <- @users do %>
+            <tr>
+              <td class="font-medium text-base-content">{user.display_name}</td>
+              <td class="text-base-content/60 text-sm">{user.email}</td>
+              <td class="text-base-content/40 text-xs">
+                {Elixir.Calendar.strftime(user.inserted_at, "%b %-d, %Y")}
+              </td>
+              <td>
+                <%= if user.is_admin do %>
+                  <span class="badge badge-primary badge-sm">admin</span>
+                <% end %>
+              </td>
+              <td>
+                <button
+                  phx-click="toggle_admin"
+                  phx-value-id={user.id}
+                  class="btn btn-xs btn-ghost text-base-content/60"
+                >
+                  {if user.is_admin, do: "Revoke admin", else: "Make admin"}
+                </button>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+  <% end %>
+</div>

@@ -60,6 +60,14 @@ defmodule ShareCircle.Accounts do
   """
   def get_user!(id), do: Repo.get!(User, id)
 
+  @doc "Returns the total number of non-deleted users in the system."
+  def count_users, do: Repo.aggregate(from(u in User, where: is_nil(u.deleted_at)), :count)
+
+  @doc "Promotes a user to instance admin."
+  def make_admin!(%User{} = user) do
+    user |> Ecto.Changeset.change(is_admin: true) |> Repo.update!()
+  end
+
   ## User registration
 
   @doc """
@@ -77,6 +85,7 @@ defmodule ShareCircle.Accounts do
   def register_user(attrs) do
     %User{}
     |> User.email_changeset(attrs)
+    |> maybe_make_first_admin()
     |> Repo.insert()
   end
 
@@ -84,7 +93,16 @@ defmodule ShareCircle.Accounts do
   def register_user_with_password(attrs) do
     %User{}
     |> User.registration_changeset(attrs)
+    |> maybe_make_first_admin()
     |> Repo.insert()
+  end
+
+  defp maybe_make_first_admin(changeset) do
+    if count_users() == 0 do
+      Ecto.Changeset.put_change(changeset, :is_admin, true)
+    else
+      changeset
+    end
   end
 
   ## Settings

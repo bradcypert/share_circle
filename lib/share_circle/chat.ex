@@ -17,6 +17,7 @@ defmodule ShareCircle.Chat do
   alias ShareCircle.Events
   alias ShareCircle.Families
   alias ShareCircle.Families.Policy
+  alias ShareCircle.Notifications
   alias ShareCircle.Repo
 
   # ---------------------------------------------------------------------------
@@ -153,6 +154,7 @@ defmodule ShareCircle.Chat do
         message = Repo.preload(message, :author)
         update_conversation_preview(conv.id, message)
         Events.broadcast_to_conversation(conv.id, :message_created, %{message: message})
+        notify_conversation_members(conv, user.id, family.id, message)
         {:ok, message}
       end
     end
@@ -312,4 +314,22 @@ defmodule ShareCircle.Chat do
   end
 
   defp build_pagination(_items, false), do: %{next_cursor: nil}
+
+  defp notify_conversation_members(conv, actor_user_id, family_id, message) do
+    from(cm in ConversationMember,
+      where: cm.conversation_id == ^conv.id and is_nil(cm.left_at) and cm.user_id != ^actor_user_id
+    )
+    |> ShareCircle.Repo.all()
+    |> Enum.each(fn cm ->
+      Notifications.notify(%{
+        family_id: family_id,
+        recipient_user_id: cm.user_id,
+        actor_user_id: actor_user_id,
+        kind: "new_message",
+        subject_type: "Message",
+        subject_id: message.id,
+        payload: %{preview: String.slice(message.body, 0, 100)}
+      })
+    end)
+  end
 end

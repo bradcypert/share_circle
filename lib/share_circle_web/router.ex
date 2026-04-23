@@ -40,6 +40,7 @@ defmodule ShareCircleWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+    live "/setup", SetupLive, :index
   end
 
   # OpenAPI spec and Swagger UI — no auth required
@@ -100,6 +101,19 @@ defmodule ShareCircleWeb.Router do
       put "/reactions/:emoji", ReactionController, :upsert
       delete "/reactions/:emoji", ReactionController, :delete
     end
+
+    # Notifications
+    get "/notifications", NotificationController, :index
+    post "/notifications/read-all", NotificationController, :read_all
+    post "/notifications/:id/read", NotificationController, :read
+
+    # Notification preferences
+    get "/me/notification-preferences", NotificationPreferenceController, :index
+    patch "/me/notification-preferences/:kind", NotificationPreferenceController, :update
+
+    # Push subscriptions
+    post "/me/push-subscriptions", PushSubscriptionController, :create
+    delete "/me/push-subscriptions/:id", PushSubscriptionController, :delete
 
     # Event routes (membership checked in context)
     get "/events/:id", EventController, :show
@@ -170,6 +184,10 @@ defmodule ShareCircleWeb.Router do
       live "/families/:family_id/chat", ChatLive, :index
       live "/families/:family_id/chat/:conversation_id", ChatLive, :show
       live "/families/:family_id/events", EventsLive, :index
+      live "/families/:family_id/onboarding", OnboardingLive, :index
+      live "/invitations/:token/accept", AcceptInvitationLive, :index
+      live "/notifications", NotificationsLive, :index
+      live "/admin", AdminLive, :index
     end
   end
 

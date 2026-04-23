@@ -14,6 +14,7 @@ defmodule ShareCircle.Posts do
   alias ShareCircle.Families
   alias ShareCircle.Families.Policy
   alias ShareCircle.Media.PostMedia
+  alias ShareCircle.Notifications
   alias ShareCircle.Posts.{Comment, Post, Reaction}
   alias ShareCircle.Repo
 
@@ -80,6 +81,7 @@ defmodule ShareCircle.Posts do
                Repo.preload(post, [:author, post_media: [media_item: :variants]])
              end) do
         Events.broadcast_to_family(family.id, :post_created, %{post: post})
+        notify_family_members(family.id, user.id, "new_post", post.id, "Post")
         {:ok, post}
       end
     end
@@ -146,6 +148,7 @@ defmodule ShareCircle.Posts do
       |> tap_broadcast(fn comment ->
         comment = Repo.preload(comment, :author)
         Events.broadcast_to_family(family.id, :comment_created, %{comment: comment})
+        notify_post_author(post, user.id, family.id, comment)
         comment
       end)
     end
@@ -332,4 +335,35 @@ defmodule ShareCircle.Posts do
 
   defp build_pagination(items, has_more),
     do: %{cursor: encode_cursor(List.last(items)), has_more: has_more}
+
+  # Notification helpers -------------------------------------------------------
+
+  defp notify_family_members(family_id, actor_user_id, kind, subject_id, subject_type) do
+    Families.list_memberships_for_family(family_id)
+    |> Enum.reject(&(&1.user_id == actor_user_id))
+    |> Enum.each(fn m ->
+      Notifications.notify(%{
+        family_id: family_id,
+        recipient_user_id: m.user_id,
+        actor_user_id: actor_user_id,
+        kind: kind,
+        subject_type: subject_type,
+        subject_id: subject_id
+      })
+    end)
+  end
+
+  defp notify_post_author(post, actor_user_id, family_id, comment) do
+    if post.author_id != actor_user_id do
+      Notifications.notify(%{
+        family_id: family_id,
+        recipient_user_id: post.author_id,
+        actor_user_id: actor_user_id,
+        kind: "new_comment",
+        subject_type: "Comment",
+        subject_id: comment.id,
+        payload: %{preview: String.slice(comment.body, 0, 100)}
+      })
+    end
+  end
 end

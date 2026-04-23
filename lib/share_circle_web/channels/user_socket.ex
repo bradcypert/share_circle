@@ -3,6 +3,7 @@ defmodule ShareCircleWeb.UserSocket do
 
   channel "family:*", ShareCircleWeb.FamilyChannel
   channel "conversation:*", ShareCircleWeb.ConversationChannel
+  channel "user:*", ShareCircleWeb.UserChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) do

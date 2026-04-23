@@ -100,5 +100,62 @@ defmodule ShareCircle.FamiliesTest do
       assert {:error, :invitation_expired_or_used} =
                Families.accept_invitation(url_token, Scope.for_user(new_user))
     end
+
+    test "returns :member_limit_reached when family is at capacity" do
+      owner = user_fixture()
+      owner_scope = scope_with_family(owner)
+
+      # Force member_limit to 1 (owner already occupies the slot)
+      ShareCircle.Repo.update_all(
+        ShareCircle.Families.Family,
+        set: [member_limit: 1]
+      )
+
+      new_user = user_fixture()
+
+      {:ok, {_inv, url_token}} =
+        Families.invite_member(owner_scope, %{email: new_user.email, role: "member"})
+
+      assert {:error, :member_limit_reached} =
+               Families.accept_invitation(url_token, Scope.for_user(new_user))
+    end
+  end
+
+  describe "create_family/2 quota defaults" do
+    test "seeds storage_quota_bytes from STORAGE_QUOTA_GB env var" do
+      System.put_env("STORAGE_QUOTA_GB", "5")
+
+      on_exit(fn -> System.delete_env("STORAGE_QUOTA_GB") end)
+
+      user = user_fixture()
+      scope = Scope.for_user(user)
+      {:ok, {family, _}} = Families.create_family(scope, valid_family_attrs())
+
+      assert family.storage_quota_bytes == 5 * 1_073_741_824
+    end
+
+    test "seeds member_limit from MEMBER_LIMIT env var" do
+      System.put_env("MEMBER_LIMIT", "25")
+
+      on_exit(fn -> System.delete_env("MEMBER_LIMIT") end)
+
+      user = user_fixture()
+      scope = Scope.for_user(user)
+      {:ok, {family, _}} = Families.create_family(scope, valid_family_attrs())
+
+      assert family.member_limit == 25
+    end
+
+    test "uses default quota when env vars are not set" do
+      System.delete_env("STORAGE_QUOTA_GB")
+      System.delete_env("MEMBER_LIMIT")
+
+      user = user_fixture()
+      scope = Scope.for_user(user)
+      {:ok, {family, _}} = Families.create_family(scope, valid_family_attrs())
+
+      assert family.storage_quota_bytes == 10 * 1_073_741_824
+      assert family.member_limit == 50
+    end
   end
 end

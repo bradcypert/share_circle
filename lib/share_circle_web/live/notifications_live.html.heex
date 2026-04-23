@@ -1,0 +1,51 @@
+<div class="max-w-2xl mx-auto px-4 py-6 space-y-4">
+  <div class="flex items-center justify-between">
+    <h1 class="text-2xl font-bold text-base-content">
+      Notifications
+      <%= if @unread_count > 0 do %>
+        <span class="badge badge-primary badge-sm ml-2">{@unread_count}</span>
+      <% end %>
+    </h1>
+    <%= if @unread_count > 0 do %>
+      <button phx-click="mark_all_read" class="btn btn-ghost btn-sm text-base-content/60">
+        Mark all read
+      </button>
+    <% end %>
+  </div>
+
+  <%= if @notifications == [] do %>
+    <div class="text-center py-16 text-base-content/40">
+      No notifications yet.
+    </div>
+  <% else %>
+    <div class="space-y-2">
+      <%= for n <- @notifications do %>
+        <div class={[
+          "flex items-start gap-3 p-4 rounded-lg border transition-colors",
+          if(is_nil(n.read_at), do: "bg-primary/5 border-primary/20", else: "bg-base-100 border-base-300")
+        ]}>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm text-base-content">
+              <span class="font-medium">{notification_text(n)}</span>
+            </p>
+            <%= if preview = Map.get(n.payload || %{}, "preview") do %>
+              <p class="text-xs text-base-content/60 mt-0.5 truncate">{preview}</p>
+            <% end %>
+            <p class="text-xs text-base-content/40 mt-1">
+              {format_time(n.inserted_at)}
+            </p>
+          </div>
+          <%= if is_nil(n.read_at) do %>
+            <button
+              phx-click="mark_read"
+              phx-value-id={n.id}
+              class="btn btn-ghost btn-xs text-base-content/40 flex-shrink-0"
+            >
+              ✓
+            </button>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% end %>
+</div>

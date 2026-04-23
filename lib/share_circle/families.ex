@@ -126,6 +126,7 @@ defmodule ShareCircle.Families do
     Repo.transaction(fn ->
       with %Invitation{} = inv <- Repo.get_by(Invitation, token: hashed_token),
            true <- Invitation.pending?(inv),
+           :ok <- check_member_limit(inv.family_id),
            {:ok, membership} <- insert_membership(%{id: inv.family_id}, user, inv.role),
            {:ok, _inv} <-
              inv
@@ -138,6 +139,7 @@ defmodule ShareCircle.Families do
       else
         nil -> Repo.rollback(:not_found)
         false -> Repo.rollback(:invitation_expired_or_used)
+        :member_limit_reached -> Repo.rollback(:member_limit_reached)
         {:error, reason} -> Repo.rollback(reason)
       end
     end)
@@ -178,7 +180,18 @@ defmodule ShareCircle.Families do
   defp insert_family(attrs) do
     %Family{}
     |> Family.changeset(attrs)
+    |> Ecto.Changeset.put_change(:storage_quota_bytes, default_storage_quota())
+    |> Ecto.Changeset.put_change(:member_limit, default_member_limit())
     |> Repo.insert()
+  end
+
+  defp default_storage_quota do
+    gb = System.get_env("STORAGE_QUOTA_GB", "10") |> String.to_integer()
+    gb * 1_073_741_824
+  end
+
+  defp default_member_limit do
+    System.get_env("MEMBER_LIMIT", "50") |> String.to_integer()
   end
 
   defp insert_membership(%{id: family_id}, %{id: user_id}, role) do
@@ -196,6 +209,13 @@ defmodule ShareCircle.Families do
 
   defp guard_not_owner(%Membership{role: "owner"}), do: {:error, :cannot_modify_owner}
   defp guard_not_owner(_), do: :ok
+
+  defp check_member_limit(family_id) do
+    family = Repo.get!(Family, family_id)
+    current = Repo.aggregate(from(m in Membership, where: m.family_id == ^family_id), :count)
+
+    if current < family.member_limit, do: :ok, else: :member_limit_reached
+  end
 
   defp unwrap_transaction({:ok, result}), do: {:ok, result}
   defp unwrap_transaction({:error, reason}), do: {:error, reason}
