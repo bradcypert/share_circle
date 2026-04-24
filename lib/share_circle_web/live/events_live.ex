@@ -27,13 +27,19 @@ defmodule ShareCircleWeb.EventsLive do
          |> assign(:family_id, family_id)
          |> assign(:events, events)
          |> assign(:show_form, false)
-         |> assign(:event_form, new_event_form())}
+         |> assign(:event_form, new_event_form())
+         |> assign(:editing_event_id, nil)
+         |> assign(:edit_form, nil)}
     end
   end
 
   @impl true
   def handle_event("toggle_form", _params, socket) do
-    {:noreply, assign(socket, :show_form, !socket.assigns.show_form)}
+    {:noreply,
+     socket
+     |> assign(:show_form, !socket.assigns.show_form)
+     |> assign(:editing_event_id, nil)
+     |> assign(:edit_form, nil)}
   end
 
   def handle_event("create_event", %{"event" => attrs}, socket) do
@@ -49,6 +55,51 @@ defmodule ShareCircleWeb.EventsLive do
       {:error, _changeset} ->
         {:noreply, socket}
     end
+  end
+
+  def handle_event("edit_event", %{"event_id" => event_id}, socket) do
+    event = Enum.find(socket.assigns.events, &(&1.id == event_id))
+
+    edit_form =
+      to_form(
+        %{
+          "title" => event.title,
+          "description" => event.description || "",
+          "location" => event.location || "",
+          "starts_at" => DateTime.to_iso8601(event.starts_at),
+          "ends_at" => event.ends_at && DateTime.to_iso8601(event.ends_at) || "",
+          "timezone" => event.timezone || "UTC"
+        },
+        as: "event"
+      )
+
+    {:noreply,
+     socket
+     |> assign(:editing_event_id, event_id)
+     |> assign(:edit_form, edit_form)
+     |> assign(:show_form, false)}
+  end
+
+  def handle_event("cancel_edit_event", _params, socket) do
+    {:noreply, socket |> assign(:editing_event_id, nil) |> assign(:edit_form, nil)}
+  end
+
+  def handle_event("update_event", %{"event" => attrs}, socket) do
+    scope = socket.assigns.current_scope
+    event_id = socket.assigns.editing_event_id
+
+    case Calendar.update_event(scope, event_id, attrs) do
+      {:ok, _event} ->
+        {:noreply, socket |> assign(:editing_event_id, nil) |> assign(:edit_form, nil)}
+
+      {:error, _} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_event", %{"event_id" => event_id}, socket) do
+    Calendar.delete_event(socket.assigns.current_scope, event_id)
+    {:noreply, socket}
   end
 
   def handle_event("rsvp", %{"event_id" => event_id, "status" => status}, socket) do
@@ -94,6 +145,53 @@ defmodule ShareCircleWeb.EventsLive do
 
   def handle_info(_msg, socket), do: {:noreply, socket}
 
+  attr :form, :map, required: true
+
+  def event_fields(assigns) do
+    ~H"""
+    <div class="space-y-3">
+      <div class="space-y-1">
+        <label class="text-xs font-medium text-base-content/60">Title</label>
+        <input type="text" name={@form[:title].name} value={Phoenix.HTML.Form.input_value(@form, :title)}
+          placeholder="What's the occasion?"
+          class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors" />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-medium text-base-content/60">Description</label>
+        <input type="text" name={@form[:description].name} value={Phoenix.HTML.Form.input_value(@form, :description)}
+          placeholder="Optional details"
+          class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors" />
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-medium text-base-content/60">Location</label>
+        <input type="text" name={@form[:location].name} value={Phoenix.HTML.Form.input_value(@form, :location)}
+          placeholder="Where?"
+          class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors" />
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-base-content/60">Starts at</label>
+          <input type="datetime-local" name={@form[:starts_at].name} value={Phoenix.HTML.Form.input_value(@form, :starts_at)}
+            class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors" />
+        </div>
+        <div class="space-y-1">
+          <label class="text-xs font-medium text-base-content/60">
+            Ends at <span class="font-normal opacity-60">(optional)</span>
+          </label>
+          <input type="datetime-local" name={@form[:ends_at].name} value={Phoenix.HTML.Form.input_value(@form, :ends_at)}
+            class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors" />
+        </div>
+      </div>
+      <div class="space-y-1">
+        <label class="text-xs font-medium text-base-content/60">Timezone</label>
+        <input type="text" name={@form[:timezone].name} value={Phoenix.HTML.Form.input_value(@form, :timezone)}
+          placeholder="UTC"
+          class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors" />
+      </div>
+    </div>
+    """
+  end
+
   defp format_datetime(dt, _tz) do
     Elixir.Calendar.strftime(dt, "%b %-d, %Y %-I:%M %p")
   end
@@ -106,14 +204,19 @@ defmodule ShareCircleWeb.EventsLive do
 
   defp new_event_form do
     now = DateTime.utc_now()
-    to_form(%{
-      "title" => "",
-      "description" => "",
-      "location" => "",
-      "starts_at" => DateTime.to_iso8601(now),
-      "timezone" => "UTC",
-      "all_day" => false
-    }, as: "event")
+
+    to_form(
+      %{
+        "title" => "",
+        "description" => "",
+        "location" => "",
+        "starts_at" => DateTime.to_iso8601(now),
+        "ends_at" => "",
+        "timezone" => "UTC",
+        "all_day" => false
+      },
+      as: "event"
+    )
   end
 
   defp insert_sorted(events, new_event) do

@@ -31,26 +31,201 @@
     <%!-- Post feed --%>
     <div class="space-y-3">
       <%= for post <- @posts do %>
-        <article class="bg-base-100 border border-base-300 rounded-lg p-5 space-y-2.5 hover:border-base-content/20 transition-colors">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-              <span class="text-xs font-semibold text-primary">
-                {String.first(post.author && post.author.display_name || "?")}
-              </span>
+        <% comment_count = Map.get(@comment_counts, post.id, 0) %>
+        <% is_expanded = @expanded_post_id == post.id %>
+        <% is_editing = @editing_post_id == post.id %>
+        <% is_mine = post.author && post.author.id == @current_scope.user.id %>
+        <% is_admin = @current_scope.membership.role in ~w(owner admin) %>
+
+        <article class="bg-base-100 border border-base-300 rounded-lg overflow-hidden hover:border-base-content/20 transition-colors">
+          <%!-- Post header + body --%>
+          <div class="p-5 space-y-2.5">
+            <div class="flex items-start gap-2.5">
+              <div class="w-8 h-8 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <span class="text-xs font-semibold text-primary">
+                  {String.first(post.author && post.author.display_name || "?")}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-semibold text-base-content leading-tight">
+                  {post.author && post.author.display_name || "Unknown"}
+                </p>
+                <div class="flex items-center gap-1.5 text-xs text-base-content/40">
+                  <time>{Elixir.Calendar.strftime(post.inserted_at, "%b %-d at %-I:%M %p")}</time>
+                  <%= if post.edited_at do %>
+                    <span>· edited</span>
+                  <% end %>
+                </div>
+              </div>
+              <%!-- Author actions --%>
+              <%= if is_mine || is_admin do %>
+                <div class="flex items-center gap-1 flex-shrink-0">
+                  <%= if is_mine && !is_editing do %>
+                    <button
+                      phx-click="edit_post"
+                      phx-value-post_id={post.id}
+                      class="p-1.5 rounded text-base-content/30 hover:text-base-content/70 hover:bg-base-200 transition-colors"
+                      title="Edit"
+                    >
+                      <.icon name="hero-pencil" class="size-3.5" />
+                    </button>
+                  <% end %>
+                  <button
+                    phx-click="delete_post"
+                    phx-value-post_id={post.id}
+                    data-confirm="Delete this post?"
+                    class="p-1.5 rounded text-base-content/30 hover:text-error hover:bg-error/10 transition-colors"
+                    title="Delete"
+                  >
+                    <.icon name="hero-trash" class="size-3.5" />
+                  </button>
+                </div>
+              <% end %>
             </div>
-            <div>
-              <p class="text-sm font-semibold text-base-content leading-tight">
-                {post.author && post.author.display_name || "Unknown"}
-              </p>
-              <div class="flex items-center gap-1.5 text-xs text-base-content/40">
-                <time>{Elixir.Calendar.strftime(post.inserted_at, "%b %-d at %-I:%M %p")}</time>
-                <%= if post.edited_at do %>
-                  <span>· edited</span>
+
+            <%!-- Body or inline edit --%>
+            <%= if is_editing do %>
+              <div class="space-y-2">
+                <textarea
+                  phx-keyup="update_editing_body"
+                  value={@editing_body}
+                  rows="3"
+                  class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content resize-none focus:outline-none focus:border-base-content/30 transition-colors"
+                ></textarea>
+                <div class="flex gap-2">
+                  <button
+                    phx-click="save_post"
+                    phx-value-post_id={post.id}
+                    disabled={String.trim(@editing_body) == ""}
+                    class="btn btn-primary btn-xs rounded-md px-3 disabled:opacity-40"
+                  >
+                    Save
+                  </button>
+                  <button
+                    phx-click="cancel_edit_post"
+                    class="btn btn-ghost btn-xs rounded-md px-3 text-base-content/60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            <% else %>
+              <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{post.body}</p>
+            <% end %>
+          </div>
+
+          <%!-- Post actions bar --%>
+          <% post_rxns = Map.get(@post_reactions, post.id, %{}) %>
+          <% my_id = @current_scope.user.id %>
+          <div class="px-5 pb-3 flex items-center gap-1 border-t border-base-300/60 pt-3 flex-wrap">
+            <%!-- Reaction buttons --%>
+            <%= for emoji <- ~w(👍 ❤️ 😂 🎉 😮) do %>
+              <% users = Map.get(post_rxns, emoji, []) %>
+              <% reacted = my_id in users %>
+              <button
+                phx-click="toggle_reaction"
+                phx-value-post_id={post.id}
+                phx-value-emoji={emoji}
+                class={[
+                  "flex items-center gap-1 px-2 py-1 rounded-full text-xs transition-colors",
+                  if(reacted,
+                    do: "bg-primary/10 text-primary font-medium ring-1 ring-primary/30",
+                    else: "text-base-content/40 hover:bg-base-200 hover:text-base-content"
+                  )
+                ]}
+              >
+                <span>{emoji}</span>
+                <%= if length(users) > 0 do %>
+                  <span>{length(users)}</span>
                 <% end %>
+              </button>
+            <% end %>
+
+            <%!-- Spacer --%>
+            <div class="flex-1" />
+
+            <%!-- Comment toggle --%>
+            <button
+              phx-click="toggle_comments"
+              phx-value-post_id={post.id}
+              class={[
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs transition-colors",
+                if(is_expanded,
+                  do: "bg-base-300 text-base-content font-medium",
+                  else: "text-base-content/50 hover:bg-base-200 hover:text-base-content"
+                )
+              ]}
+            >
+              <.icon name="hero-chat-bubble-left" class="size-3.5" />
+              <%= if comment_count > 0 do %>
+                {comment_count} {if comment_count == 1, do: "comment", else: "comments"}
+              <% else %>
+                Comment
+              <% end %>
+            </button>
+          </div>
+
+          <%!-- Expanded comments section --%>
+          <%= if is_expanded do %>
+            <div class="border-t border-base-300 bg-base-200/40">
+              <%!-- Existing comments --%>
+              <%= if @expanded_comments != [] do %>
+                <div class="px-5 py-3 space-y-3">
+                  <%= for comment <- @expanded_comments do %>
+                    <div class="flex items-start gap-2.5">
+                      <div class="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span class="text-[10px] font-semibold text-primary">
+                          {String.first(comment.author.display_name || "?")}
+                        </span>
+                      </div>
+                      <div class="flex-1 min-w-0">
+                        <div class="inline-block bg-base-100 border border-base-300 rounded-lg px-3 py-2">
+                          <p class="text-xs font-semibold text-base-content leading-tight">
+                            {comment.author.display_name}
+                          </p>
+                          <p class="text-sm text-base-content/80 leading-snug mt-0.5">
+                            {comment.body}
+                          </p>
+                        </div>
+                        <p class="text-[10px] text-base-content/35 mt-1 ml-1">
+                          {Elixir.Calendar.strftime(comment.inserted_at, "%b %-d at %-I:%M %p")}
+                        </p>
+                      </div>
+                    </div>
+                  <% end %>
+                </div>
+              <% end %>
+
+              <%!-- Comment input --%>
+              <div class="px-5 pb-4 flex items-start gap-2.5">
+                <div class="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-1">
+                  <span class="text-[10px] font-semibold text-primary">
+                    {String.first(@current_scope.user.display_name || @current_scope.user.email)}
+                  </span>
+                </div>
+                <div class="flex-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    phx-keyup="update_comment_body"
+                    value={@comment_body}
+                    placeholder="Write a comment…"
+                    class="flex-1 bg-base-100 border border-base-300 rounded-full px-4 py-1.5 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors"
+                    phx-key="Enter"
+                    phx-keydown="create_comment"
+                    phx-value-post_id={post.id}
+                  />
+                  <button
+                    phx-click="create_comment"
+                    phx-value-post_id={post.id}
+                    disabled={String.trim(@comment_body) == ""}
+                    class="btn btn-primary btn-xs rounded-full px-3 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Post
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{post.body}</p>
+          <% end %>
         </article>
       <% end %>
 

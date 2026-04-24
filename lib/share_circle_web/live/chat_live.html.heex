@@ -1,7 +1,14 @@
 <.app_shell current_scope={@current_scope} active_tab="chat" main_class="overflow-hidden flex flex-col">
   <div class="flex flex-1 min-h-0">
-    <%!-- Conversation sidebar --%>
-    <aside class="w-60 border-r border-base-300 flex flex-col flex-shrink-0 bg-base-200/50 overflow-hidden">
+    <%!-- Conversation sidebar — full-screen overlay on mobile, fixed panel on desktop --%>
+    <aside class={[
+      "flex-col flex-shrink-0 bg-base-200/50 border-r border-base-300 overflow-hidden",
+      "md:flex md:w-60",
+      if(@show_sidebar,
+        do: "flex fixed inset-0 z-20 w-full md:relative md:inset-auto",
+        else: "hidden"
+      )
+    ]}>
       <div class="px-3 py-3 border-b border-base-300 flex items-center justify-between">
         <h2 class="text-xs font-semibold text-base-content/40 uppercase tracking-wider px-1">Conversations</h2>
         <button
@@ -127,9 +134,17 @@
     <div class="flex-1 flex flex-col overflow-hidden">
       <%= if @active_conv do %>
         <%!-- Conversation header --%>
-        <div class="px-5 py-3.5 border-b border-base-300 flex items-center gap-3 flex-shrink-0">
-          <div>
-            <h2 class="text-sm font-semibold text-base-content">
+        <div class="px-4 py-3.5 border-b border-base-300 flex items-center gap-3 flex-shrink-0">
+          <%!-- Mobile: show sidebar toggle button --%>
+          <button
+            phx-click="toggle_sidebar"
+            class="md:hidden p-1.5 rounded text-base-content/40 hover:text-base-content hover:bg-base-200 transition-colors flex-shrink-0"
+            title="Conversations"
+          >
+            <.icon name="hero-chat-bubble-left-right" class="size-4" />
+          </button>
+          <div class="flex-1 min-w-0">
+            <h2 class="text-sm font-semibold text-base-content truncate">
               {conversation_display_name(@active_conv)}
             </h2>
             <p class="text-xs text-base-content/40">
@@ -141,7 +156,9 @@
         <%!-- Messages --%>
         <div class="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4" id="messages">
           <%= for msg <- @messages do %>
-            <div class="flex items-start gap-3">
+            <% _is_mine = msg.author.id == @current_scope.user.id %>
+            <% is_editing = @editing_message_id == msg.id %>
+            <div class="flex items-start gap-3 group">
               <div class="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 mt-0.5">
                 <span class="text-xs font-semibold text-primary">
                   {String.first(msg.author.display_name || "?")}
@@ -153,8 +170,52 @@
                   <span class="text-xs text-base-content/35">
                     {Elixir.Calendar.strftime(msg.inserted_at, "%-I:%M %p")}
                   </span>
+                  <%= if msg.author.id == @current_scope.user.id && !is_editing do %>
+                    <div class="hidden group-hover:flex items-center gap-1 ml-1">
+                      <button
+                        phx-click="edit_message"
+                        phx-value-id={msg.id}
+                        class="p-0.5 rounded text-base-content/30 hover:text-base-content/70 transition-colors"
+                        title="Edit"
+                      >
+                        <.icon name="hero-pencil" class="size-3" />
+                      </button>
+                      <button
+                        phx-click="delete_message"
+                        phx-value-id={msg.id}
+                        data-confirm="Delete this message?"
+                        class="p-0.5 rounded text-base-content/30 hover:text-error transition-colors"
+                        title="Delete"
+                      >
+                        <.icon name="hero-trash" class="size-3" />
+                      </button>
+                    </div>
+                  <% end %>
                 </div>
-                <p class="text-sm text-base-content/80 mt-0.5 leading-relaxed">{msg.body}</p>
+                <%= if is_editing do %>
+                  <div class="flex items-center gap-2 mt-1">
+                    <input
+                      type="text"
+                      phx-keyup="update_editing_message_body"
+                      value={@editing_message_body}
+                      class="flex-1 bg-base-200 border border-base-300 rounded-lg px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                      phx-key="Enter"
+                      phx-keydown="save_message"
+                      phx-value-id={msg.id}
+                    />
+                    <button
+                      phx-click="save_message"
+                      phx-value-id={msg.id}
+                      class="btn btn-primary btn-xs rounded-md px-2"
+                    >Save</button>
+                    <button
+                      phx-click="cancel_edit_message"
+                      class="btn btn-ghost btn-xs rounded-md px-2 text-base-content/50"
+                    >✕</button>
+                  </div>
+                <% else %>
+                  <p class="text-sm text-base-content/80 mt-0.5 leading-relaxed">{msg.body}</p>
+                <% end %>
               </div>
             </div>
           <% end %>

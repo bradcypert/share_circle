@@ -64,7 +64,7 @@ defmodule ShareCircleWeb.AppComponents do
               active={@active_tab == "notifications"}
               icon="hero-bell"
               label="Notifications"
-              navigate={~p"/notifications"}
+              navigate={~p"/notifications?family_id=#{@current_scope.family.id}"}
             />
             <.nav_link
               active={false}
@@ -138,7 +138,7 @@ defmodule ShareCircleWeb.AppComponents do
             active={@active_tab == "notifications"}
             icon="hero-bell"
             label="More"
-            navigate={~p"/notifications"}
+            navigate={~p"/notifications?family_id=#{@current_scope.family.id}"}
           />
         </div>
       </nav>

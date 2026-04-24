@@ -53,7 +53,10 @@ defmodule ShareCircleWeb.ChatLive do
          |> assign(:new_conv_open, false)
          |> assign(:new_conv_kind, "direct")
          |> assign(:new_conv_name, "")
-         |> assign(:new_conv_member_ids, [])}
+         |> assign(:new_conv_member_ids, [])
+         |> assign(:editing_message_id, nil)
+         |> assign(:editing_message_body, "")
+         |> assign(:show_sidebar, false)}
     end
   end
 
@@ -86,6 +89,10 @@ defmodule ShareCircleWeb.ChatLive do
   def handle_params(_params, _uri, socket), do: {:noreply, socket}
 
   @impl true
+  def handle_event("toggle_sidebar", _params, socket) do
+    {:noreply, assign(socket, :show_sidebar, !socket.assigns.show_sidebar)}
+  end
+
   def handle_event("toggle_new_conv", _params, socket) do
     {:noreply,
      socket
@@ -144,6 +151,40 @@ defmodule ShareCircleWeb.ChatLive do
     end
   end
 
+  def handle_event("edit_message", %{"id" => id}, socket) do
+    msg = Enum.find(socket.assigns.messages, &(&1.id == id))
+
+    {:noreply,
+     socket
+     |> assign(:editing_message_id, id)
+     |> assign(:editing_message_body, msg && msg.body || "")}
+  end
+
+  def handle_event("cancel_edit_message", _params, socket) do
+    {:noreply, socket |> assign(:editing_message_id, nil) |> assign(:editing_message_body, "")}
+  end
+
+  def handle_event("update_editing_message_body", %{"value" => value}, socket) do
+    {:noreply, assign(socket, :editing_message_body, value)}
+  end
+
+  def handle_event("save_message", %{"id" => id}, socket) do
+    scope = socket.assigns.current_scope
+
+    case Chat.update_message(scope, id, %{"body" => socket.assigns.editing_message_body}) do
+      {:ok, _msg} ->
+        {:noreply, socket |> assign(:editing_message_id, nil) |> assign(:editing_message_body, "")}
+
+      {:error, _} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_message", %{"id" => id}, socket) do
+    Chat.delete_message(socket.assigns.current_scope, id)
+    {:noreply, socket}
+  end
+
   def handle_event("send_message", %{"message" => %{"body" => body}}, socket) do
     scope = socket.assigns.current_scope
     conv = socket.assigns.active_conv
@@ -159,7 +200,9 @@ defmodule ShareCircleWeb.ChatLive do
 
   def handle_event("select_conversation", %{"id" => conv_id}, socket) do
     {:noreply,
-     push_patch(socket, to: ~p"/families/#{socket.assigns.family_id}/chat/#{conv_id}")}
+     socket
+     |> assign(:show_sidebar, false)
+     |> push_patch(to: ~p"/families/#{socket.assigns.family_id}/chat/#{conv_id}")}
   end
 
   @impl true

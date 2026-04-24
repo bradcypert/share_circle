@@ -5,7 +5,7 @@ defmodule ShareCircleWeb.NotificationsLive do
   alias ShareCircle.PubSub
 
   @impl true
-  def mount(_params, _session, socket) do
+  def mount(params, _session, socket) do
     scope = socket.assigns.current_scope
 
     if connected?(socket) do
@@ -18,7 +18,8 @@ defmodule ShareCircleWeb.NotificationsLive do
     {:ok,
      socket
      |> assign(:notifications, notifications)
-     |> assign(:unread_count, unread)}
+     |> assign(:unread_count, unread)
+     |> assign(:back_family_id, params["family_id"])}
   end
 
   @impl true

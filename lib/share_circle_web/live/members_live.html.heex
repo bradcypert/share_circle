@@ -1,34 +1,127 @@
 <.app_shell current_scope={@current_scope} active_tab="members">
-  <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
-    <div class="flex items-center justify-between">
-      <h1 class="text-lg font-semibold text-base-content">
-        Members
-        <span class="ml-2 text-sm font-normal text-base-content/40">
-          {length(@members)}
-        </span>
-      </h1>
+  <div class="max-w-2xl mx-auto px-4 py-8 space-y-8">
+
+    <%!-- Members section --%>
+    <div class="space-y-4">
+      <div class="flex items-center justify-between">
+        <h1 class="text-lg font-semibold text-base-content">
+          Members
+          <span class="ml-2 text-sm font-normal text-base-content/40">{length(@members)}</span>
+        </h1>
+        <%= if @can_invite do %>
+          <button
+            phx-click="toggle_invite_form"
+            class="btn btn-sm btn-primary rounded-md px-4"
+          >
+            {if @show_invite_form, do: "Cancel", else: "Invite member"}
+          </button>
+        <% end %>
+      </div>
+
+      <%!-- Invite form --%>
+      <%= if @show_invite_form do %>
+        <div class="bg-base-100 border border-base-300 rounded-lg p-5 space-y-4">
+          <h2 class="text-sm font-semibold text-base-content">Invite someone to {@current_scope.family.name}</h2>
+
+          <%= if @invite_error do %>
+            <p class="text-xs text-error">{@invite_error}</p>
+          <% end %>
+
+          <div class="space-y-3">
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-base-content/60">Email address</label>
+              <input
+                type="email"
+                phx-keyup="update_invite_email"
+                value={@invite_email}
+                placeholder="name@example.com"
+                class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors"
+              />
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-base-content/60">Role</label>
+              <select
+                phx-change="update_invite_role"
+                name="role"
+                class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+              >
+                <option value="member" selected={@invite_role == "member"}>Member — can post, comment, and react</option>
+                <option value="admin" selected={@invite_role == "admin"}>Admin — can also manage members and invitations</option>
+                <option value="limited" selected={@invite_role == "limited"}>Limited — read-only access</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              phx-click="send_invitation"
+              disabled={String.trim(@invite_email) == ""}
+              class="btn btn-primary btn-sm rounded-md px-4 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Send invitation
+            </button>
+          </div>
+        </div>
+      <% end %>
+
+      <%!-- Member list --%>
+      <div class="space-y-2">
+        <%= for membership <- @members do %>
+          <.link
+            navigate={~p"/families/#{@family_id}/members/#{membership.user_id}"}
+            class="flex items-center gap-4 p-4 bg-base-100 border border-base-300 rounded-lg hover:border-base-content/20 transition-colors group"
+          >
+            <div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+              <span class="text-sm font-semibold text-primary">
+                {String.first(membership.user.display_name || membership.user.email)}
+              </span>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-semibold text-base-content truncate">
+                {membership.user.display_name || membership.user.email}
+              </p>
+              <p class="text-xs text-base-content/40 capitalize">{membership.role}</p>
+            </div>
+            <.icon name="hero-chevron-right" class="size-4 text-base-content/25 group-hover:text-base-content/50 transition-colors" />
+          </.link>
+        <% end %>
+      </div>
     </div>
 
-    <div class="space-y-2">
-      <%= for membership <- @members do %>
-        <.link
-          navigate={~p"/families/#{@family_id}/members/#{membership.user_id}"}
-          class="flex items-center gap-4 p-4 bg-base-100 border border-base-300 rounded-lg hover:border-base-content/20 transition-colors group"
-        >
-          <div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-            <span class="text-sm font-semibold text-primary">
-              {String.first(membership.user.display_name || membership.user.email)}
-            </span>
-          </div>
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-semibold text-base-content truncate">
-              {membership.user.display_name || membership.user.email}
-            </p>
-            <p class="text-xs text-base-content/40 capitalize">{membership.role}</p>
-          </div>
-          <.icon name="hero-chevron-right" class="size-4 text-base-content/25 group-hover:text-base-content/50 transition-colors" />
-        </.link>
-      <% end %>
-    </div>
+    <%!-- Pending invitations --%>
+    <%= if @can_invite && @invitations != [] do %>
+      <div class="space-y-3">
+        <h2 class="text-xs font-semibold text-base-content/40 uppercase tracking-wider">
+          Pending invitations
+          <span class="ml-1 font-normal normal-case">({length(@invitations)})</span>
+        </h2>
+
+        <div class="space-y-2">
+          <%= for inv <- @invitations do %>
+            <div class="flex items-center gap-4 px-4 py-3 bg-base-100 border border-base-300 rounded-lg">
+              <div class="w-8 h-8 rounded-full bg-base-300 flex items-center justify-center flex-shrink-0">
+                <.icon name="hero-envelope" class="size-4 text-base-content/40" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-sm text-base-content truncate">{inv.email}</p>
+                <p class="text-xs text-base-content/40 capitalize">
+                  Invited as {inv.role} · expires {Elixir.Calendar.strftime(inv.expires_at, "%b %-d")}
+                </p>
+              </div>
+              <button
+                phx-click="revoke_invitation"
+                phx-value-id={inv.id}
+                class="text-xs text-base-content/30 hover:text-error transition-colors flex-shrink-0"
+                title="Revoke invitation"
+              >
+                Revoke
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
   </div>
 </.app_shell>

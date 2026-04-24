@@ -89,7 +89,6 @@ defmodule ShareCircle.Families do
       {url_token, changeset} = Invitation.build(family.id, user.id, attrs)
 
       with {:ok, invitation} <- Repo.insert(changeset) do
-        # TODO: deliver invitation email via UserNotifier
         {:ok, {invitation, url_token}}
       end
     end

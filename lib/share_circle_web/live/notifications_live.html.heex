@@ -1,19 +1,15 @@
 <%!-- Notifications uses a standalone centered layout (not family-scoped) --%>
 <div class="min-h-screen bg-base-100">
   <%!-- Minimal top nav --%>
-  <header class="border-b border-base-300 px-6 py-3 flex items-center justify-between">
+  <header class="border-b border-base-300 px-3 sm:px-6 py-3 flex items-center justify-between">
     <div class="flex items-center gap-3">
-      <%= if @current_scope && @current_scope.family do %>
-        <.link navigate={~p"/families/#{@current_scope.family.id}/feed"} class="text-sm text-base-content/50 hover:text-base-content transition-colors flex items-center gap-1">
-          <.icon name="hero-arrow-left" class="size-4" />
-          Back
-        </.link>
-      <% else %>
-        <.link navigate={~p"/families"} class="text-sm text-base-content/50 hover:text-base-content transition-colors flex items-center gap-1">
-          <.icon name="hero-arrow-left" class="size-4" />
-          Back
-        </.link>
-      <% end %>
+      <.link
+        navigate={if @back_family_id, do: ~p"/families/#{@back_family_id}/feed", else: ~p"/families"}
+        class="text-sm text-base-content/50 hover:text-base-content transition-colors flex items-center gap-1"
+      >
+        <.icon name="hero-arrow-left" class="size-4" />
+        Back
+      </.link>
     </div>
     <div class="flex items-center gap-2">
       <h1 class="text-sm font-semibold text-base-content">

@@ -137,6 +137,19 @@ defmodule ShareCircle.Posts do
   # Comments
   # ---------------------------------------------------------------------------
 
+  @doc "Returns a map of post_id => comment count for the given post IDs."
+  def count_comments_by_post(_scope, []), do: %{}
+
+  def count_comments_by_post(%Scope{family: family}, post_ids) do
+    from(c in Comment,
+      where: c.post_id in ^post_ids and c.family_id == ^family.id and is_nil(c.deleted_at),
+      group_by: c.post_id,
+      select: {c.post_id, count(c.id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
   @doc "Returns all non-deleted comments for a post, oldest first."
   def list_comments(%Scope{user: user}, post_id) do
     with {:ok, post} <- get_visible_post(post_id, user.id) do
@@ -205,6 +218,26 @@ defmodule ShareCircle.Posts do
   # ---------------------------------------------------------------------------
   # Reactions
   # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns a nested map of reactions for a list of posts.
+  Shape: %{post_id => %{emoji => [user_id]}}
+  """
+  def list_reactions_for_posts(_scope, []), do: %{}
+
+  def list_reactions_for_posts(%Scope{family: family}, post_ids) do
+    from(r in Reaction,
+      where:
+        r.subject_type == "post" and r.subject_id in ^post_ids and r.family_id == ^family.id,
+      select: {r.subject_id, r.emoji, r.user_id}
+    )
+    |> Repo.all()
+    |> Enum.reduce(%{}, fn {post_id, emoji, user_id}, acc ->
+      Map.update(acc, post_id, %{emoji => [user_id]}, fn emojis ->
+        Map.update(emojis, emoji, [user_id], &[user_id | &1])
+      end)
+    end)
+  end
 
   @doc "Adds a reaction to a post or comment. Idempotent — re-reacting with the same emoji is a no-op."
   def react(%Scope{user: user, family: family, membership: membership}, subject_type, subject_id, emoji) do

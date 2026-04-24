@@ -84,6 +84,25 @@ defmodule ShareCircle.Accounts.UserNotifier do
     """)
   end
 
+  def deliver_invitation_instructions(recipient_email, family_name, accept_url) do
+    deliver(recipient_email, "You're invited to join #{family_name} on ShareCircle", """
+
+    ==============================
+
+    Hi there,
+
+    You've been invited to join #{family_name} on ShareCircle.
+
+    Accept your invitation by visiting the link below (valid for 7 days):
+
+    #{accept_url}
+
+    If you don't have a ShareCircle account yet, you'll be able to create one after clicking the link.
+
+    ==============================
+    """)
+  end
+
   def deliver_reset_password_instructions(user, url) do
     deliver(user.email, "Reset your ShareCircle password", """
 
