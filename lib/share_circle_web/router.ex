@@ -249,5 +249,10 @@ defmodule ShareCircleWeb.Router do
     get "/users/log-in/:token", UserSessionController, :confirm
     post "/users/log-in", UserSessionController, :create
     delete "/users/log-out", UserSessionController, :delete
+
+    live_session :unauthenticated_user_flows do
+      live "/users/activate/:token", ChildActivationLive, :index
+      live "/users/promote/:token", PromotionLive, :index
+    end
   end
 end

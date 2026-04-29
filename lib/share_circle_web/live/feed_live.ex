@@ -27,6 +27,8 @@ defmodule ShareCircleWeb.FeedLive do
         comment_counts = Posts.count_comments_by_post(scope, post_ids)
         post_reactions = Posts.list_reactions_for_posts(scope, post_ids)
         media_urls = build_media_urls(scope, posts)
+        post_authors = Enum.map(posts, & &1.author)
+        avatar_urls = build_avatar_urls(scope, [scope.user | post_authors])
 
         {:ok,
          socket
@@ -37,16 +39,19 @@ defmodule ShareCircleWeb.FeedLive do
          |> assign(:comment_counts, comment_counts)
          |> assign(:post_reactions, post_reactions)
          |> assign(:media_urls, media_urls)
+         |> assign(:avatar_urls, avatar_urls)
          |> assign(:expanded_post_id, nil)
          |> assign(:expanded_comments, [])
          |> assign(:comment_body, "")
          |> assign(:editing_post_id, nil)
          |> assign(:editing_body, "")
+         |> assign(:lightbox_url, nil)
          |> allow_upload(:media,
            accept: ~w(.jpg .jpeg .png .gif .webp .heic .heif .mp4 .mov .webm .avi),
            max_entries: 4,
            max_file_size: 100_000_000,
-           external: &presign_upload/2
+           external: &presign_upload/2,
+           auto_upload: true
          )}
     end
   end
@@ -60,7 +65,8 @@ defmodule ShareCircleWeb.FeedLive do
     post_ids = Enum.map(new_posts, & &1.id)
     new_counts = Posts.count_comments_by_post(scope, post_ids)
     new_reactions = Posts.list_reactions_for_posts(scope, post_ids)
-    new_urls = build_media_urls(scope, new_posts)
+    new_media_urls = build_media_urls(scope, new_posts)
+    new_avatar_urls = build_avatar_urls(scope, Enum.map(new_posts, & &1.author))
 
     {:noreply,
      socket
@@ -68,25 +74,36 @@ defmodule ShareCircleWeb.FeedLive do
      |> assign(:pagination, pagination)
      |> update(:comment_counts, &Map.merge(&1, new_counts))
      |> update(:post_reactions, &Map.merge(&1, new_reactions))
-     |> update(:media_urls, &Map.merge(&1, new_urls))}
+     |> update(:media_urls, &Map.merge(&1, new_media_urls))
+     |> update(:avatar_urls, &Map.merge(&1, new_avatar_urls))}
   end
 
-  def handle_event("create_post", _params, socket) do
+  def handle_event("validate_media", _params, socket), do: {:noreply, socket}
+
+  def handle_event("open_lightbox", %{"url" => url}, socket) do
+    {:noreply, assign(socket, :lightbox_url, url)}
+  end
+
+  def handle_event("close_lightbox", _params, socket) do
+    {:noreply, assign(socket, :lightbox_url, nil)}
+  end
+
+  def handle_event("create_post", %{"body" => body}, socket) do
     scope = socket.assigns.current_scope
-    body = socket.assigns.post_body
 
     media_ids =
       consume_uploaded_entries(socket, :media, fn %{session_id: session_id}, _entry ->
         case Media.complete_upload(scope, session_id) do
           {:ok, item} -> {:ok, item.id}
-          {:error, _} -> {:ok, nil}
+          {:error, reason} ->
+            require Logger
+            Logger.error("[FeedLive] complete_upload failed: #{inspect(reason)}")
+            {:ok, nil}
         end
       end)
       |> Enum.reject(&is_nil/1)
 
-    attrs = %{"body" => body, "media_ids" => media_ids}
-
-    case Posts.create_post(scope, attrs) do
+    case Posts.create_post(scope, %{"body" => body, "media_ids" => media_ids}) do
       {:ok, _post} -> {:noreply, assign(socket, :post_body, "")}
       {:error, _} -> {:noreply, put_flash(socket, :error, "Could not create post.")}
     end
@@ -116,11 +133,14 @@ defmodule ShareCircleWeb.FeedLive do
           _ -> []
         end
 
+      new_avatar_urls = build_avatar_urls(socket.assigns.current_scope, Enum.map(comments, & &1.author))
+
       {:noreply,
        socket
        |> assign(:expanded_post_id, post_id)
        |> assign(:expanded_comments, comments)
-       |> assign(:comment_body, "")}
+       |> assign(:comment_body, "")
+       |> update(:avatar_urls, &Map.merge(&1, new_avatar_urls))}
     end
   end
 
@@ -188,14 +208,17 @@ defmodule ShareCircleWeb.FeedLive do
 
   @impl true
   def handle_info({:post_created, %{post: post}}, socket) do
-    media_urls = build_media_urls(socket.assigns.current_scope, [post])
+    scope = socket.assigns.current_scope
+    media_urls = build_media_urls(scope, [post])
+    new_avatar_urls = build_avatar_urls(scope, [post.author])
 
     {:noreply,
      socket
      |> update(:posts, &[post | &1])
      |> update(:comment_counts, &Map.put(&1, post.id, 0))
      |> update(:post_reactions, &Map.put(&1, post.id, %{}))
-     |> update(:media_urls, &Map.merge(&1, media_urls))}
+     |> update(:media_urls, &Map.merge(&1, media_urls))
+     |> update(:avatar_urls, &Map.merge(&1, new_avatar_urls))}
   end
 
   def handle_info({:reaction_added, %{reaction: reaction}}, socket) do
@@ -269,26 +292,13 @@ defmodule ShareCircleWeb.FeedLive do
         socket
       end
 
-    {:noreply, socket}
+    new_avatar_urls = build_avatar_urls(socket.assigns.current_scope, [comment.author])
+
+    {:noreply, update(socket, :avatar_urls, &Map.merge(&1, new_avatar_urls))}
   end
 
   def handle_info({:comment_deleted, %{comment_id: id}}, socket) do
-    socket =
-      if socket.assigns.expanded_post_id != nil do
-        deleted = Enum.find(socket.assigns.expanded_comments, &(&1.id == id))
-
-        socket
-        |> update(:expanded_comments, &Enum.reject(&1, fn c -> c.id == id end))
-        |> update(:comment_counts, fn counts ->
-          if deleted,
-            do: Map.update(counts, deleted.post_id, 0, &max(0, &1 - 1)),
-            else: counts
-        end)
-      else
-        socket
-      end
-
-    {:noreply, socket}
+    {:noreply, maybe_remove_comment(socket, id)}
   end
 
   def handle_info({:media_ready, media_item_id}, socket) do
@@ -303,10 +313,28 @@ defmodule ShareCircleWeb.FeedLive do
   def handle_info(:refresh_media_urls, socket) do
     Process.send_after(self(), :refresh_media_urls, 240_000)
     scope = socket.assigns.current_scope
-    {:noreply, assign(socket, :media_urls, build_media_urls(scope, socket.assigns.posts))}
-  end
+    posts = socket.assigns.posts
+    all_users = [scope.user | Enum.map(posts, & &1.author)]
 
+    {:noreply,
+     socket
+     |> assign(:media_urls, build_media_urls(scope, posts))
+     |> assign(:avatar_urls, build_avatar_urls(scope, all_users))}
+
+  end
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  defp maybe_remove_comment(%{assigns: %{expanded_post_id: nil}} = socket, _id), do: socket
+
+  defp maybe_remove_comment(socket, id) do
+    deleted = Enum.find(socket.assigns.expanded_comments, &(&1.id == id))
+
+    socket
+    |> update(:expanded_comments, &Enum.reject(&1, fn c -> c.id == id end))
+    |> update(:comment_counts, fn counts ->
+      if deleted, do: Map.update(counts, deleted.post_id, 0, &max(0, &1 - 1)), else: counts
+    end)
+  end
 
   defp maybe_load_media_url(socket, nil, _media_item_id), do: socket
 
@@ -343,6 +371,7 @@ defmodule ShareCircleWeb.FeedLive do
   end
 
   defp build_media_urls(scope, posts), do: LiveHelpers.build_media_urls(scope, posts)
+  defp build_avatar_urls(scope, users), do: LiveHelpers.build_avatar_urls(scope, users)
 
   def upload_error_to_string(:too_large), do: "File too large (max 100 MB)"
   def upload_error_to_string(:not_accepted), do: "File type not supported"

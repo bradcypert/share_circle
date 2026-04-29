@@ -3,6 +3,7 @@ defmodule ShareCircleWeb.EventsLive do
 
   alias ShareCircle.Calendar
   alias ShareCircle.PubSub
+  alias ShareCircleWeb.LiveHelpers
 
   @impl true
   def mount(%{"family_id" => family_id}, _session, socket) do
@@ -29,7 +30,8 @@ defmodule ShareCircleWeb.EventsLive do
          |> assign(:show_form, false)
          |> assign(:event_form, new_event_form())
          |> assign(:editing_event_id, nil)
-         |> assign(:edit_form, nil)}
+         |> assign(:edit_form, nil)
+         |> assign(:current_avatar_url, LiveHelpers.get_user_avatar_url(scope, scope.user))}
     end
   end
 
@@ -125,25 +127,24 @@ defmodule ShareCircleWeb.EventsLive do
   end
 
   def handle_info({:rsvp_updated, %{rsvp: rsvp}}, socket) do
-    # Reload the affected event so RSVP counts update in place
     scope = socket.assigns.current_scope
-
-    events =
-      Enum.map(socket.assigns.events, fn e ->
-        if e.id == rsvp.event_id do
-          case Calendar.get_event(scope, e.id) do
-            {:ok, refreshed} -> refreshed
-            _ -> e
-          end
-        else
-          e
-        end
-      end)
-
-    {:noreply, assign(socket, :events, events)}
+    {:noreply, update(socket, :events, &refresh_event(&1, rsvp.event_id, scope))}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  defp refresh_event(events, event_id, scope) do
+    Enum.map(events, fn e ->
+      if e.id == event_id, do: reload_event(scope, e), else: e
+    end)
+  end
+
+  defp reload_event(scope, event) do
+    case Calendar.get_event(scope, event.id) do
+      {:ok, refreshed} -> refreshed
+      _ -> event
+    end
+  end
 
   attr :form, :map, required: true
 

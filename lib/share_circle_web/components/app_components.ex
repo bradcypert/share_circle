@@ -1,4 +1,5 @@
 defmodule ShareCircleWeb.AppComponents do
+  @moduledoc false
   use Phoenix.Component
 
   import ShareCircleWeb.CoreComponents, only: [icon: 1]
@@ -11,6 +12,7 @@ defmodule ShareCircleWeb.AppComponents do
   attr :current_scope, :map, required: true
   attr :active_tab, :string, default: nil
   attr :main_class, :string, default: "overflow-y-auto"
+  attr :current_avatar_url, :string, default: nil
   slot :inner_block, required: true
 
   def app_shell(assigns) do
@@ -77,21 +79,23 @@ defmodule ShareCircleWeb.AppComponents do
 
         <%!-- User footer --%>
         <div class="border-t border-base-300 p-3">
-          <div class="flex items-center gap-2.5 px-1 group">
-            <div class="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-              <span class="text-xs font-semibold text-primary">
-                {String.first(@current_scope.user.display_name || @current_scope.user.email)}
-              </span>
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-xs font-medium text-base-content truncate">
-                {@current_scope.user.display_name || @current_scope.user.email}
-              </p>
-            </div>
+          <div class="flex items-center gap-2.5 group">
+            <.link
+              navigate={~p"/families/#{@current_scope.family.id}/members/#{@current_scope.user.id}"}
+              class="flex items-center gap-2.5 flex-1 min-w-0 px-1 py-0.5 rounded-md hover:bg-base-300/60 transition-colors"
+            >
+              <.user_avatar user={@current_scope.user} url={@current_avatar_url} size={:sm} />
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium text-base-content truncate">
+                  {@current_scope.user.display_name || @current_scope.user.email}
+                </p>
+                <p class="text-[10px] text-base-content/40 truncate">View profile</p>
+              </div>
+            </.link>
             <.link
               href={~p"/users/log-out"}
               method="delete"
-              class="opacity-0 group-hover:opacity-100 transition-opacity text-base-content/40 hover:text-base-content/70"
+              class="opacity-0 group-hover:opacity-100 transition-opacity text-base-content/40 hover:text-base-content/70 flex-shrink-0"
               title="Log out"
             >
               <.icon name="hero-arrow-right-on-rectangle" class="size-4" />
@@ -135,10 +139,10 @@ defmodule ShareCircleWeb.AppComponents do
             navigate={~p"/families/#{@current_scope.family.id}/members"}
           />
           <.tab_link
-            active={@active_tab == "notifications"}
-            icon="hero-bell"
-            label="More"
-            navigate={~p"/notifications?family_id=#{@current_scope.family.id}"}
+            active={@active_tab == "profile"}
+            icon="hero-user-circle"
+            label="Profile"
+            navigate={~p"/families/#{@current_scope.family.id}/members/#{@current_scope.user.id}"}
           />
         </div>
       </nav>
@@ -166,6 +170,79 @@ defmodule ShareCircleWeb.AppComponents do
       <.icon name={@icon} class="size-4 flex-shrink-0" />
       {@label}
     </.link>
+    """
+  end
+
+  @doc """
+  Renders a user avatar: the photo if a URL is provided, otherwise an initials chip.
+  Sizes: :xs (w-6), :sm (w-7), :md (w-8), :lg (w-16), :xl (w-20).
+  """
+  attr :user, :map, required: true
+  attr :url, :string, default: nil
+  attr :size, :atom, default: :md
+  attr :class, :string, default: nil
+
+  def user_avatar(assigns) do
+    ~H"""
+    <div class={[
+      "rounded-full flex-shrink-0 overflow-hidden flex items-center justify-center",
+      avatar_size_class(@size),
+      if(@url, do: "bg-transparent", else: "bg-primary/15"),
+      @class
+    ]}>
+      <%= if @url do %>
+        <img src={@url} class="w-full h-full object-cover" alt={@user.display_name || ""} />
+      <% else %>
+        <span class={["font-semibold text-primary", avatar_text_class(@size)]}>
+          {String.first(@user.display_name || @user.email || "?")}
+        </span>
+      <% end %>
+    </div>
+    """
+  end
+
+  defp avatar_size_class(:xs), do: "w-6 h-6"
+  defp avatar_size_class(:sm), do: "w-7 h-7"
+  defp avatar_size_class(:md), do: "w-8 h-8"
+  defp avatar_size_class(:lg), do: "w-16 h-16"
+  defp avatar_size_class(:xl), do: "w-20 h-20"
+
+  defp avatar_text_class(:xs), do: "text-[10px]"
+  defp avatar_text_class(:sm), do: "text-[11px]"
+  defp avatar_text_class(:md), do: "text-xs"
+  defp avatar_text_class(:lg), do: "text-xl"
+  defp avatar_text_class(:xl), do: "text-2xl"
+
+  @doc """
+  Full-screen lightbox overlay. Pass `url` to open; nil to keep hidden.
+  Emits `close_lightbox` on background click or the × button.
+  """
+  attr :url, :string, default: nil
+
+  def lightbox(assigns) do
+    ~H"""
+    <%= if @url do %>
+      <div
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm"
+        phx-click="close_lightbox"
+        phx-key="Escape"
+        phx-window-keydown="close_lightbox"
+      >
+        <button
+          phx-click="close_lightbox"
+          class="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+          aria-label="Close"
+        >
+          <.icon name="hero-x-mark" class="size-5" />
+        </button>
+        <img
+          src={@url}
+          class="max-w-[90vw] max-h-[90vh] rounded-lg object-contain shadow-2xl"
+          phx-click="ignore"
+          alt=""
+        />
+      </div>
+    <% end %>
     """
   end
 

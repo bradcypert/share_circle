@@ -119,4 +119,56 @@ defmodule ShareCircle.Accounts.UserNotifier do
     ==============================
     """)
   end
+
+  def deliver_child_activation_instructions(child_user, guardian_display_name, url) do
+    deliver(child_user.email, "Set up your ShareCircle account", """
+
+    ==============================
+
+    Hi #{child_user.display_name},
+
+    #{guardian_display_name} has created a ShareCircle account for you.
+    Set up your account by visiting the link below (valid for 7 days):
+
+    #{url}
+
+    You'll choose your own password so only you can log in.
+
+    ==============================
+    """)
+  end
+
+  def deliver_promotion_instructions(child_user, guardian_display_name, url) do
+    deliver(child_user.email, "Your ShareCircle account is yours now", """
+
+    ==============================
+
+    Hi #{child_user.display_name},
+
+    #{guardian_display_name} has granted you full access to your ShareCircle account.
+    All your posts and memories are still there — this is just the next step.
+
+    To take ownership of your account, follow the link below (valid for 7 days):
+
+    #{url}
+
+    You'll set a new password and can update your email address.
+
+    ==============================
+    """)
+  end
+
+  def deliver_promotion_complete_notification(guardian_user, child_display_name) do
+    deliver(guardian_user.email, "#{child_display_name} has taken ownership of their account", """
+
+    ==============================
+
+    Hi #{guardian_user.display_name},
+
+    #{child_display_name} has set their own password and now has full access to their
+    ShareCircle account.
+
+    ==============================
+    """)
+  end
 end

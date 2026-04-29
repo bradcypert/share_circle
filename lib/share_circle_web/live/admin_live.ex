@@ -10,9 +10,7 @@ defmodule ShareCircleWeb.AdminLive do
   def mount(_params, _session, socket) do
     user = socket.assigns.current_scope.user
 
-    unless user.is_admin do
-      {:ok, push_navigate(socket, to: ~p"/families")}
-    else
+    if user.is_admin do
       {:ok,
        socket
        |> assign(:tab, :families)
@@ -20,6 +18,8 @@ defmodule ShareCircleWeb.AdminLive do
        |> assign(:users, load_users())
        |> assign(:edit_quota, nil)
        |> assign(:quota_form, nil)}
+    else
+      {:ok, push_navigate(socket, to: ~p"/families")}
     end
   end
 

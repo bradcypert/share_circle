@@ -16,6 +16,7 @@ defmodule ShareCircle.Families.Membership do
 
     field :role, :string
     field :nickname, :string
+    field :relationship_label, :string
     field :joined_at, :utc_datetime_usec
     field :last_read_feed_at, :utc_datetime_usec
 
@@ -29,5 +30,11 @@ defmodule ShareCircle.Families.Membership do
     |> validate_inclusion(:role, Role.all(),
       message: "must be one of: #{Enum.join(Role.all(), ", ")}"
     )
+  end
+
+  def relationship_label_changeset(membership, attrs) do
+    membership
+    |> cast(attrs, [:relationship_label])
+    |> validate_length(:relationship_label, max: 50)
   end
 end

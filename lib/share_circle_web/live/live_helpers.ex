@@ -17,4 +17,35 @@ defmodule ShareCircleWeb.LiveHelpers do
       end
     end)
   end
+
+  @doc """
+  Builds a map of user_id => avatar URL for a list of users.
+  Skips users without an avatar_media_item_id. Falls back to the
+  original file URL while the thumb_256 variant is still processing.
+  """
+  def build_avatar_urls(scope, users) do
+    users
+    |> Enum.reject(&(is_nil(&1) or is_nil(Map.get(&1, :avatar_media_item_id))))
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.reduce(%{}, fn user, acc ->
+      url =
+        case Media.get_variant_url(scope, user.avatar_media_item_id, "thumb_256") do
+          {:ok, url} ->
+            url
+
+          {:error, _} ->
+            case Media.get_download_url(scope, user.avatar_media_item_id) do
+              {:ok, url} -> url
+              {:error, _} -> nil
+            end
+        end
+
+      if url, do: Map.put(acc, user.id, url), else: acc
+    end)
+  end
+
+  @doc "Returns the avatar URL for a single user, or nil."
+  def get_user_avatar_url(scope, user) do
+    build_avatar_urls(scope, [user]) |> Map.get(user.id)
+  end
 end

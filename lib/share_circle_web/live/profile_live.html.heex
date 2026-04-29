@@ -1,127 +1,372 @@
-<.app_shell current_scope={@current_scope} active_tab="members">
-  <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
-    <%!-- Profile header --%>
-    <div class="bg-base-100 border border-base-300 rounded-lg overflow-hidden">
-      <%!-- Cover area --%>
-      <div class="h-24 bg-gradient-to-br from-base-300 to-base-200"></div>
+<.app_shell current_scope={@current_scope} active_tab={if @is_own_profile, do: "profile", else: "members"} current_avatar_url={@current_avatar_url}>
+  <div class="max-w-5xl mx-auto px-4 py-8">
+    <div class="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 items-start">
 
-      <div class="px-6 pb-5">
-        <%!-- Avatar (overlapping cover) --%>
-        <div class="-mt-8 mb-4">
-          <div class="w-16 h-16 rounded-full bg-primary/20 border-4 border-base-100 flex items-center justify-center">
-            <span class="text-xl font-bold text-primary">
-              {String.first(@profile_user.display_name || @profile_user.email)}
-            </span>
+      <%!-- ===================== LEFT COLUMN ===================== --%>
+      <div class="space-y-4 md:sticky md:top-8">
+
+        <%!-- Profile card --%>
+        <div class="bg-base-100 border border-base-300 rounded-lg overflow-hidden">
+
+          <%!-- Cover photo --%>
+          <div class="relative h-28 bg-gradient-to-br from-base-300 to-base-200 group">
+            <%= if @cover_url do %>
+              <img src={@cover_url} class="absolute inset-0 w-full h-full object-cover" alt="" />
+            <% end %>
+            <%= if @is_own_profile do %>
+              <form phx-change="validate_cover" class="absolute inset-0">
+                <.live_file_input upload={@uploads.cover} class="sr-only" />
+                <label
+                  for={@uploads.cover.ref}
+                  class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer bg-black/30"
+                >
+                  <div class="flex items-center gap-1.5 text-white text-xs font-medium bg-black/40 rounded-md px-2.5 py-1">
+                    <.icon name="hero-camera" class="size-3.5" />
+                    <span>Change cover</span>
+                  </div>
+                </label>
+              </form>
+            <% end %>
           </div>
-        </div>
 
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <h1 class="text-lg font-semibold text-base-content">
-              {@profile_user.display_name || @profile_user.email}
-            </h1>
-            <p class="text-sm text-base-content/45 capitalize mt-0.5">
-              {@profile_membership.role} · {@current_scope.family.name}
-            </p>
-          </div>
-          <%!-- If viewing own profile, link to settings --%>
-          <%= if @profile_user.id == @current_scope.user.id do %>
-            <.link
-              navigate={~p"/users/settings"}
-              class="btn btn-sm btn-ghost rounded-md text-base-content/60"
-            >
-              Edit profile
-            </.link>
-          <% end %>
-        </div>
-      </div>
-    </div>
-
-    <%!-- Posts wall --%>
-    <div>
-      <h2 class="text-xs font-semibold text-base-content/40 uppercase tracking-wider mb-3">
-        Posts
-      </h2>
-
-      <%= if @posts == [] do %>
-        <div class="text-center py-16 text-base-content/30">
-          <p class="text-sm">No posts yet.</p>
-        </div>
-      <% else %>
-        <div class="space-y-3">
-          <%= for post <- @posts do %>
-            <article class="bg-base-100 border border-base-300 rounded-lg p-5 hover:border-base-content/20 transition-colors">
-              <div class="flex items-center gap-2 mb-2.5">
-                <div class="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-                  <span class="text-xs font-semibold text-primary">
-                    {String.first(@profile_user.display_name || @profile_user.email)}
-                  </span>
-                </div>
-                <time class="text-xs text-base-content/40">
-                  {Elixir.Calendar.strftime(post.inserted_at, "%b %-d, %Y at %-I:%M %p")}
-                </time>
-                <%= if post.edited_at do %>
-                  <span class="text-xs text-base-content/30">· edited</span>
+          <div class="px-5 pb-5">
+            <%!-- Avatar + edit button row --%>
+            <div class="-mt-8 mb-3 flex items-end justify-between">
+              <div class="relative group/avatar">
+                <.user_avatar user={@profile_user} url={@avatar_url} size={:xl} class="border-4 border-base-100" />
+                <%= if @is_own_profile do %>
+                  <form phx-change="validate_avatar" class="absolute inset-0 rounded-full overflow-hidden">
+                    <.live_file_input upload={@uploads.avatar} class="sr-only" />
+                    <label
+                      for={@uploads.avatar.ref}
+                      class="absolute inset-0 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer bg-black/40 rounded-full"
+                    >
+                      <.icon name="hero-camera" class="size-4 text-white" />
+                    </label>
+                  </form>
                 <% end %>
               </div>
-              <%= if post.body && post.body != "" do %>
-                <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">
-                  {post.body}
-                </p>
+
+              <%= if @is_own_profile && !@editing do %>
+                <button
+                  phx-click="start_editing"
+                  class="btn btn-xs btn-ghost rounded-md text-base-content/60 border border-base-300"
+                >
+                  Edit
+                </button>
               <% end %>
-              <%!-- Media attachments --%>
-              <%= if post.post_media != [] do %>
-                <% media_count = length(post.post_media) %>
-                <div class={[
-                  "rounded-lg overflow-hidden mt-3",
-                  if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")
-                ]}>
-                  <%= for pm <- post.post_media do %>
-                    <% url = Map.get(@media_urls, pm.media_item.id) %>
-                    <div class={[
-                      "relative bg-base-200",
-                      if(media_count == 1, do: "max-h-72", else: "aspect-square")
-                    ]}>
-                      <%= if url do %>
-                        <img
-                          src={url}
-                          class={[
-                            "w-full object-cover",
-                            if(media_count == 1, do: "max-h-72", else: "h-full absolute inset-0")
-                          ]}
-                          alt=""
-                        />
-                        <%= if pm.media_item.kind == "video" do %>
-                          <div class="absolute inset-0 flex items-center justify-center">
-                            <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
-                              <.icon name="hero-play-solid" class="size-4 text-white ml-0.5" />
-                            </div>
-                          </div>
-                        <% end %>
-                      <% else %>
-                        <div class="w-full h-28 flex items-center justify-center">
-                          <p class="text-xs text-base-content/40">Processing…</p>
-                        </div>
-                      <% end %>
+            </div>
+
+            <%!-- Edit form --%>
+            <%= if @editing do %>
+              <form phx-submit="save_profile" phx-change="validate_profile" class="space-y-3">
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">Display name</label>
+                  <input
+                    type="text"
+                    name="profile[display_name]"
+                    value={@edit_form["display_name"]}
+                    required
+                    maxlength="100"
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">
+                    Family relationship
+                    <span class="font-normal opacity-60">(e.g. Mom, Grandpa)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="profile[relationship_label]"
+                    value={@edit_form["relationship_label"]}
+                    maxlength="50"
+                    placeholder="How the family knows you"
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">Bio</label>
+                  <textarea
+                    name="profile[bio]"
+                    rows="3"
+                    maxlength="300"
+                    placeholder="A little about you"
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content resize-none focus:outline-none focus:border-base-content/30 transition-colors"
+                  >{@edit_form["bio"]}</textarea>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">Location</label>
+                  <input
+                    type="text"
+                    name="profile[location]"
+                    value={@edit_form["location"]}
+                    maxlength="100"
+                    placeholder="City, State"
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">Birthday</label>
+                  <input
+                    type="date"
+                    name="profile[birthday]"
+                    value={@edit_form["birthday"]}
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">Interests</label>
+                  <input
+                    type="text"
+                    name="profile[interests]"
+                    value={@edit_form["interests"]}
+                    maxlength="300"
+                    placeholder="Hiking, cooking, photography…"
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">Timezone</label>
+                  <select
+                    name="profile[timezone]"
+                    class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
+                  >
+                    <%= for tz <- ShareCircleWeb.ProfileLive.common_timezones() do %>
+                      <option value={tz} selected={@edit_form["timezone"] == tz}>{tz}</option>
+                    <% end %>
+                  </select>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                  <button type="submit" class="btn btn-primary btn-xs rounded-md px-3">Save</button>
+                  <button
+                    type="button"
+                    phx-click="cancel_editing"
+                    class="btn btn-ghost btn-xs rounded-md px-3 text-base-content/60"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+
+            <%!-- Read-only profile info --%>
+            <% else %>
+              <div class="space-y-3">
+                <div>
+                  <div class="flex items-baseline gap-2 flex-wrap">
+                    <h1 class="text-base font-semibold text-base-content">
+                      {@profile_user.display_name || @profile_user.email}
+                    </h1>
+                    <%= if @profile_membership.relationship_label && @profile_membership.relationship_label != "" do %>
+                      <span class="text-xs text-base-content/50">
+                        {@profile_membership.relationship_label}
+                      </span>
+                    <% end %>
+                  </div>
+                  <p class="text-xs text-base-content/40 capitalize mt-0.5">
+                    {@profile_membership.role} · {@current_scope.family.name}
+                  </p>
+                </div>
+
+                <%= if @profile_user.bio && @profile_user.bio != "" do %>
+                  <p class="text-sm text-base-content/75 leading-relaxed">{@profile_user.bio}</p>
+                <% end %>
+
+                <div class="space-y-1.5 text-xs text-base-content/50">
+                  <%= if @profile_user.location && @profile_user.location != "" do %>
+                    <div class="flex items-center gap-1.5">
+                      <.icon name="hero-map-pin" class="size-3.5 flex-shrink-0" />
+                      <span>{@profile_user.location}</span>
                     </div>
                   <% end %>
+                  <%= if @profile_user.birthday do %>
+                    <div class="flex items-center gap-1.5">
+                      <.icon name="hero-cake" class="size-3.5 flex-shrink-0" />
+                      <span>{Calendar.strftime(@profile_user.birthday, "%B %-d")}</span>
+                    </div>
+                  <% end %>
+                  <%= if @profile_user.interests && @profile_user.interests != "" do %>
+                    <div class="flex items-center gap-1.5">
+                      <.icon name="hero-sparkles" class="size-3.5 flex-shrink-0" />
+                      <span>{@profile_user.interests}</span>
+                    </div>
+                  <% end %>
+                  <div class="flex items-center gap-1.5">
+                    <.icon name="hero-calendar" class="size-3.5 flex-shrink-0" />
+                    <span>Member since {Calendar.strftime(@profile_membership.joined_at, "%B %Y")}</span>
+                  </div>
                 </div>
-              <% end %>
-            </article>
-          <% end %>
+              </div>
+            <% end %>
+          </div>
         </div>
 
-        <%= if @pagination.has_more do %>
-          <div class="flex justify-center pt-2">
-            <button
-              phx-click="load_more"
-              class="btn btn-ghost btn-sm rounded-md text-base-content/50 hover:text-base-content"
-            >
-              Load more
-            </button>
+        <%!-- Recent photos --%>
+        <% recent_photos =
+          @posts
+          |> Enum.flat_map(& &1.post_media)
+          |> Enum.filter(&Map.has_key?(@media_urls, &1.media_item.id))
+          |> Enum.take(9) %>
+        <%= if recent_photos != [] do %>
+          <div class="bg-base-100 border border-base-300 rounded-lg p-4">
+            <h2 class="text-xs font-semibold text-base-content/40 uppercase tracking-wider mb-3">
+              Photos
+            </h2>
+            <div class="grid grid-cols-3 gap-1 rounded-lg overflow-hidden">
+              <%= for pm <- recent_photos do %>
+                <% url = Map.get(@media_urls, pm.media_item.id) %>
+                <button
+                  phx-click="open_lightbox"
+                  phx-value-url={url}
+                  class="aspect-square bg-base-200 relative overflow-hidden block rounded focus:outline-none"
+                >
+                  <img src={url} class="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-200" alt="" />
+                  <%= if pm.media_item.kind == "video" do %>
+                    <div class="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <.icon name="hero-play-solid" class="size-4 text-white" />
+                    </div>
+                  <% end %>
+                </button>
+              <% end %>
+            </div>
           </div>
         <% end %>
-      <% end %>
+      </div>
+
+      <%!-- ===================== RIGHT COLUMN ===================== --%>
+      <div class="space-y-3 min-w-0">
+        <h2 class="text-xs font-semibold text-base-content/40 uppercase tracking-wider">Posts</h2>
+
+        <% pinned_id = @profile_user.pinned_post_id %>
+        <% pinned_post = if pinned_id, do: Enum.find(@posts, &(&1.id == pinned_id)), else: nil %>
+
+        <%!-- Pinned post --%>
+        <%= if pinned_post do %>
+          <div class="flex items-center gap-1.5 text-xs text-base-content/40 -mb-1 ml-1">
+            <.icon name="hero-bookmark-solid" class="size-3.5 text-primary/60" />
+            <span>Pinned</span>
+          </div>
+          <article class="bg-base-100 border border-primary/20 rounded-lg p-5 space-y-2.5">
+            <div class="flex items-center justify-between gap-2">
+              <time class="text-xs text-base-content/40">
+                {Calendar.strftime(pinned_post.inserted_at, "%b %-d, %Y at %-I:%M %p")}
+              </time>
+              <%= if @is_own_profile do %>
+                <button
+                  phx-click="unpin_post"
+                  class="text-xs text-base-content/30 hover:text-base-content/60 transition-colors"
+                >
+                  Unpin
+                </button>
+              <% end %>
+            </div>
+            <%= if pinned_post.body && pinned_post.body != "" do %>
+              <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{String.trim(pinned_post.body)}</p>
+            <% end %>
+            <%= if pinned_post.post_media != [] do %>
+              <% media_count = length(pinned_post.post_media) %>
+              <div class={["rounded-lg overflow-hidden", if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")]}>
+                <%= for pm <- pinned_post.post_media do %>
+                  <% url = Map.get(@media_urls, pm.media_item.id) %>
+                  <div class={["relative bg-base-200", if(media_count == 1, do: "max-h-72", else: "aspect-square")]}>
+                    <%= if url do %>
+                      <img src={url} class={["w-full object-cover cursor-zoom-in", if(media_count == 1, do: "max-h-72", else: "h-full absolute inset-0")]} phx-click="open_lightbox" phx-value-url={url} alt="" />
+                    <% else %>
+                      <div class="w-full h-28 flex items-center justify-center">
+                        <p class="text-xs text-base-content/40">Processing…</p>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
+          </article>
+        <% end %>
+
+        <%= if @posts == [] do %>
+          <div class="text-center py-16 text-base-content/30">
+            <p class="text-sm">No posts yet.</p>
+          </div>
+        <% else %>
+          <%= for post <- @posts do %>
+            <%= unless post.id == pinned_id do %>
+              <article class="bg-base-100 border border-base-300 rounded-lg p-5 space-y-2.5 hover:border-base-content/20 transition-colors group/post">
+                <div class="flex items-center justify-between gap-2">
+                  <time class="text-xs text-base-content/40">
+                    {Calendar.strftime(post.inserted_at, "%b %-d, %Y at %-I:%M %p")}
+                  </time>
+                  <div class="flex items-center gap-2">
+                    <%= if post.edited_at do %>
+                      <span class="text-xs text-base-content/30">edited</span>
+                    <% end %>
+                    <%= if @is_own_profile do %>
+                      <button
+                        phx-click="pin_post"
+                        phx-value-post_id={post.id}
+                        class="text-xs text-base-content/20 hover:text-base-content/50 opacity-0 group-hover/post:opacity-100 transition-all flex items-center gap-1"
+                        title="Pin to profile"
+                      >
+                        <.icon name="hero-bookmark" class="size-3.5" />
+                        Pin
+                      </button>
+                    <% end %>
+                  </div>
+                </div>
+
+                <%= if post.body && post.body != "" do %>
+                  <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{String.trim(post.body)}</p>
+                <% end %>
+
+                <%= if post.post_media != [] do %>
+                  <% media_count = length(post.post_media) %>
+                  <div class={["rounded-lg overflow-hidden", if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")]}>
+                    <%= for pm <- post.post_media do %>
+                      <% url = Map.get(@media_urls, pm.media_item.id) %>
+                      <div class={["relative bg-base-200", if(media_count == 1, do: "max-h-72", else: "aspect-square")]}>
+                        <%= if url do %>
+                          <img src={url} class={["w-full object-cover cursor-zoom-in", if(media_count == 1, do: "max-h-72", else: "h-full absolute inset-0")]} phx-click="open_lightbox" phx-value-url={url} alt="" />
+                          <%= if pm.media_item.kind == "video" do %>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                              <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
+                                <.icon name="hero-play-solid" class="size-4 text-white ml-0.5" />
+                              </div>
+                            </div>
+                          <% end %>
+                        <% else %>
+                          <div class="w-full h-28 flex items-center justify-center">
+                            <p class="text-xs text-base-content/40">Processing…</p>
+                          </div>
+                        <% end %>
+                      </div>
+                    <% end %>
+                  </div>
+                <% end %>
+              </article>
+            <% end %>
+          <% end %>
+
+          <%= if @pagination.has_more do %>
+            <div class="flex justify-center pt-2">
+              <button
+                phx-click="load_more"
+                class="btn btn-ghost btn-sm rounded-md text-base-content/50 hover:text-base-content"
+              >
+                Load more
+              </button>
+            </div>
+          <% end %>
+        <% end %>
+      </div>
+
     </div>
   </div>
 </.app_shell>
+
+<.lightbox url={@lightbox_url} />

@@ -68,6 +68,19 @@ defmodule ShareCircle.Families do
     end
   end
 
+  @doc """
+  Adds a pre-created supervised (child) user to the family with the `child` role.
+
+  Used by guardians who create child accounts directly rather than via invitation.
+  Requires `:invite_member` permission.
+  """
+  def add_supervised_member(%Scope{membership: membership, family: family} = _scope, child_user_id) do
+    with :ok <- Policy.authorize(membership, :invite_member),
+         :ok <- check_member_limit(family.id) do
+      insert_membership(%{id: family.id}, %{id: child_user_id}, "child")
+    end
+  end
+
   @doc "Changes a member's role. Cannot demote the owner."
   def update_member_role(%Scope{membership: membership} = scope, user_id, role) do
     with :ok <- Policy.authorize(membership, :update_member_role),
@@ -170,6 +183,19 @@ defmodule ShareCircle.Families do
     |> where(family_id: ^family_id, user_id: ^user_id)
     |> preload(:family)
     |> Repo.one()
+  end
+
+  @doc "Updates the relationship_label on the caller's own membership in the family."
+  def update_membership_label(%Scope{user: user, family: family}, relationship_label) do
+    case Repo.get_by(Membership, family_id: family.id, user_id: user.id) do
+      nil ->
+        {:error, :not_found}
+
+      membership ->
+        membership
+        |> Membership.relationship_label_changeset(%{relationship_label: relationship_label})
+        |> Repo.update()
+    end
   end
 
   # ---------------------------------------------------------------------------

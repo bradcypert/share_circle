@@ -1,5 +1,8 @@
 defmodule ShareCircleWeb.ConversationChannel do
+  @moduledoc false
   use Phoenix.Channel
+
+  import Ecto.Query
 
   alias ShareCircle.Chat.ConversationMember
   alias ShareCircle.PubSub
@@ -10,11 +13,12 @@ defmodule ShareCircleWeb.ConversationChannel do
     user = socket.assigns.current_user
 
     member =
-      Repo.get_by(ConversationMember,
-        conversation_id: conversation_id,
-        user_id: user.id,
-        left_at: nil
+      from(cm in ConversationMember,
+        where:
+          cm.conversation_id == ^conversation_id and cm.user_id == ^user.id and
+            is_nil(cm.left_at)
       )
+      |> Repo.one()
 
     if member do
       PubSub.subscribe(PubSub.conversation_topic(conversation_id))

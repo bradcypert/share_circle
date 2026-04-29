@@ -48,15 +48,10 @@ defmodule ShareCircleWeb.NotificationsLive do
 
     case Notifications.mark_read(scope, id) do
       {:ok, _} ->
-        notifications =
-          Enum.map(socket.assigns.notifications, fn n ->
-            if n.id == id, do: %{n | read_at: DateTime.utc_now()}, else: n
-          end)
-
         {:noreply,
          socket
-         |> assign(:notifications, notifications)
-         |> assign(:unread_count, max(socket.assigns.unread_count - 1, 0))}
+         |> update(:notifications, &mark_notification_read(&1, id))
+         |> update(:unread_count, &max(&1 - 1, 0))}
 
       _ ->
         {:noreply, socket}
@@ -103,20 +98,27 @@ defmodule ShareCircleWeb.NotificationsLive do
 
   def handle_info(_, socket), do: {:noreply, socket}
 
-  defp notification_text(%{kind: kind, actor_user: actor}) do
-    actor_name = if actor, do: actor.display_name, else: "Someone"
-
-    case kind do
-      "new_post" -> "#{actor_name} shared a new post"
-      "new_comment" -> "#{actor_name} commented on a post"
-      "new_message" -> "#{actor_name} sent a message"
-      "reaction" -> "#{actor_name} reacted to your post"
-      "event_created" -> "#{actor_name} added a new event"
-      "rsvp_changed" -> "#{actor_name} updated their RSVP"
-      "member_joined" -> "#{actor_name} joined the family"
-      _ -> "New notification from #{actor_name}"
-    end
+  defp mark_notification_read(notifications, id) do
+    Enum.map(notifications, fn n ->
+      if n.id == id, do: %{n | read_at: DateTime.utc_now()}, else: n
+    end)
   end
+
+  defp notification_text(%{kind: kind, actor_user: actor}) do
+    notification_message(kind, actor_name(actor))
+  end
+
+  defp actor_name(nil), do: "Someone"
+  defp actor_name(%{display_name: name}), do: name
+
+  defp notification_message("new_post", name), do: "#{name} shared a new post"
+  defp notification_message("new_comment", name), do: "#{name} commented on a post"
+  defp notification_message("new_message", name), do: "#{name} sent a message"
+  defp notification_message("reaction", name), do: "#{name} reacted to your post"
+  defp notification_message("event_created", name), do: "#{name} added a new event"
+  defp notification_message("rsvp_changed", name), do: "#{name} updated their RSVP"
+  defp notification_message("member_joined", name), do: "#{name} joined the family"
+  defp notification_message(_, name), do: "New notification from #{name}"
 
   defp format_time(dt) do
     Calendar.strftime(dt, "%b %-d at %-I:%M %p")

@@ -28,7 +28,8 @@ defmodule ShareCircle.Calendar do
   - `:limit` — max rows (default: 50)
   """
   def list_events(%Scope{family: family}, opts \\ []) do
-    from_dt = Keyword.get(opts, :from, DateTime.utc_now() |> DateTime.truncate(:second))
+    from_dt =
+      Keyword.get(opts, :from, DateTime.utc_now() |> DateTime.to_date() |> DateTime.new!(~T[00:00:00]))
     to_dt = Keyword.get(opts, :to)
     limit = Keyword.get(opts, :limit, 50)
 

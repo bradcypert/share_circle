@@ -1,4 +1,5 @@
 defmodule ShareCircleWeb.FamilyChannel do
+  @moduledoc false
   use Phoenix.Channel
 
   alias ShareCircle.Families

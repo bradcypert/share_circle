@@ -2,7 +2,7 @@ defmodule ShareCircleWeb.Api.V1.RsvpController do
   use ShareCircleWeb, :controller
 
   alias ShareCircle.Calendar
-  alias ShareCircleWeb.Api.V1.{RsvpJSON, Response}
+  alias ShareCircleWeb.Api.V1.{Response, RsvpJSON}
 
   action_fallback ShareCircleWeb.Api.V1.FallbackController
 

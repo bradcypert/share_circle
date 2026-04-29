@@ -108,10 +108,13 @@ const Uploaders = {
       const {url, headers} = entry.meta
       const xhr = new XMLHttpRequest()
       onViewError(() => xhr.abort())
+      // Only signal 100% (done) after the server confirms receipt (onload).
+      // The upload progress event fires when bytes leave the client, which can
+      // race ahead of the server actually writing the file to storage.
       xhr.onload = () => (xhr.status >= 200 && xhr.status < 300) ? entry.progress(100) : entry.error()
       xhr.onerror = () => entry.error()
       xhr.upload.addEventListener("progress", e => {
-        if (e.lengthComputable) entry.progress(Math.round((e.loaded / e.total) * 100))
+        if (e.lengthComputable) entry.progress(Math.min(Math.round((e.loaded / e.total) * 100), 99))
       })
       xhr.open("PUT", url, true)
       if (headers) Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v))
@@ -120,11 +123,28 @@ const Uploaders = {
   }
 }
 
+// Submits the closest form when Ctrl+Enter or Cmd+Enter is pressed.
+// Attach with phx-hook="CtrlEnterSubmit" on a textarea or input.
+const CtrlEnterSubmit = {
+  mounted() {
+    this.handler = (e) => {
+      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault()
+        this.el.closest("form")?.requestSubmit()
+      }
+    }
+    this.el.addEventListener("keydown", this.handler)
+  },
+  destroyed() {
+    this.el.removeEventListener("keydown", this.handler)
+  }
+}
+
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   params: {_csrf_token: csrfToken},
-  hooks: {...colocatedHooks, ScrollBottom, PushNotifications},
+  hooks: {...colocatedHooks, ScrollBottom, PushNotifications, CtrlEnterSubmit},
   uploaders: Uploaders,
 })
 
@@ -135,6 +155,11 @@ window.addEventListener("phx:page-loading-stop", _info => topbar.hide())
 
 // connect if there are any LiveViews on the page
 liveSocket.connect()
+
+window.addEventListener("phx:clear-message-input", () => {
+  const el = document.getElementById("message-input")
+  if (el) { el.value = ""; el.focus() }
+})
 
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").catch(err => console.error("SW registration failed:", err))

@@ -56,6 +56,32 @@ defmodule ShareCircle.Families.Policy do
   def authorize(%Membership{role: "member", user_id: uid}, :delete_event, %{author_id: uid}),
     do: :ok
 
+  # Admin and owner may initiate promotion of a child account
+  def authorize(%Membership{role: "admin"}, :promote_member, _subject), do: :ok
+
+  # Child — same create/react rights as member, own-content edits only
+  def authorize(%Membership{role: "child"}, action, _subject)
+      when action in [:create_post, :create_comment, :create_message, :create_event, :react],
+      do: :ok
+
+  def authorize(%Membership{role: "child", user_id: uid}, :update_post, %{author_id: uid}),
+    do: :ok
+
+  def authorize(%Membership{role: "child", user_id: uid}, :delete_post, %{author_id: uid}),
+    do: :ok
+
+  def authorize(%Membership{role: "child", user_id: uid}, :update_comment, %{author_id: uid}),
+    do: :ok
+
+  def authorize(%Membership{role: "child", user_id: uid}, :delete_comment, %{author_id: uid}),
+    do: :ok
+
+  def authorize(%Membership{role: "child", user_id: uid}, :update_event, %{author_id: uid}),
+    do: :ok
+
+  def authorize(%Membership{role: "child", user_id: uid}, :delete_event, %{author_id: uid}),
+    do: :ok
+
   # Limited — read only, no mutations
   def authorize(%Membership{role: "limited"}, _action, _subject), do: {:error, :unauthorized}
 

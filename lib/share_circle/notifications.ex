@@ -146,8 +146,16 @@ defmodule ShareCircle.Notifications do
 
   @doc "Returns the effective channels map for a given user/family/kind."
   def get_channels(user_id, family_id, kind) do
-    case Repo.get_by(NotificationPreference, user_id: user_id, family_id: family_id, kind: kind) ||
-           Repo.get_by(NotificationPreference, user_id: user_id, family_id: nil, kind: kind) do
+    family_pref =
+      Repo.get_by(NotificationPreference, user_id: user_id, family_id: family_id, kind: kind)
+
+    global_pref =
+      from(p in NotificationPreference,
+        where: p.user_id == ^user_id and is_nil(p.family_id) and p.kind == ^kind
+      )
+      |> Repo.one()
+
+    case family_pref || global_pref do
       nil -> %{"in_app" => true, "email" => false, "push" => true}
       pref -> pref.channels
     end

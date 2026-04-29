@@ -71,10 +71,11 @@ defmodule ShareCircleWeb.Api.V1.AuthController do
 
   # POST /api/v1/auth/password/reset/confirm
   def confirm_password_reset(conn, %{"token" => token, "password" => password}) do
-    with {:ok, {user, _}} <- Accounts.reset_user_password(token, %{password: password}) do
-      new_token = Accounts.generate_user_api_token(user)
-      Response.render_data(conn, %{user: UserJSON.render(user), token: new_token})
-    else
+    case Accounts.reset_user_password(token, %{password: password}) do
+      {:ok, {user, _}} ->
+        new_token = Accounts.generate_user_api_token(user)
+        Response.render_data(conn, %{user: UserJSON.render(user), token: new_token})
+
       {:error, :invalid_or_expired_token} ->
         Response.render_error(
           conn,

@@ -50,7 +50,7 @@ defmodule ShareCircle.Posts do
 
     query =
       from p in Post,
-        where: p.family_id == ^family.id and p.user_id == ^author_id and is_nil(p.deleted_at),
+        where: p.family_id == ^family.id and p.author_id == ^author_id and is_nil(p.deleted_at),
         order_by: [desc: p.inserted_at, desc: p.id],
         limit: ^(limit + 1),
         preload: [:author, post_media: [media_item: :variants]]
@@ -62,7 +62,8 @@ defmodule ShareCircle.Posts do
 
   @doc "Loads a single post, verifying the current user is a member of the post's family."
   def get_post(%Scope{user: user}, post_id) do
-    with %Post{deleted_at: nil} = post <- Repo.get_by(Post, id: post_id, deleted_at: nil),
+    with %Post{} = post <- Repo.get(Post, post_id),
+         true <- is_nil(post.deleted_at),
          true <- member?(post.family_id, user.id) do
       {:ok, Repo.preload(post, [:author, post_media: [media_item: :variants]])}
     else
@@ -73,37 +74,26 @@ defmodule ShareCircle.Posts do
 
   @doc "Creates a post. Scope must have family and membership. Accepts optional `media_ids` list."
   def create_post(%Scope{user: user, family: family, membership: membership}, attrs) do
-    with :ok <- Policy.authorize(membership, :create_post) do
-      media_ids = Map.get(attrs, "media_ids", [])
-      kind = infer_kind(attrs, media_ids)
-
-      with {:ok, post} <-
-             Repo.transaction(fn ->
-               post =
-                 %Post{family_id: family.id, author_id: user.id}
-                 |> Post.changeset(Map.put(attrs, "kind", kind))
-                 |> Repo.insert!()
-
-               media_ids
-               |> Enum.with_index()
-               |> Enum.each(fn {media_id, i} ->
-                 Repo.insert!(
-                   PostMedia.changeset(%{
-                     post_id: post.id,
-                     media_item_id: media_id,
-                     position: i
-                   }),
-                   on_conflict: :nothing
-                 )
-               end)
-
-               Repo.preload(post, [:author, post_media: [media_item: :variants]])
-             end) do
-        Events.broadcast_to_family(family.id, :post_created, %{post: post})
-        notify_family_members(family.id, user.id, "new_post", post.id, "Post")
-        {:ok, post}
-      end
+    with :ok <- Policy.authorize(membership, :create_post),
+         media_ids = Map.get(attrs, "media_ids", []),
+         kind = infer_kind(attrs, media_ids),
+         {:ok, post} <- insert_post(user.id, family.id, attrs, kind, media_ids) do
+      Events.broadcast_to_family(family.id, :post_created, %{post: post})
+      notify_family_members(family.id, user.id, "new_post", post.id, "Post")
+      {:ok, post}
     end
+  end
+
+  defp insert_post(user_id, family_id, attrs, kind, media_ids) do
+    Repo.transaction(fn ->
+      post =
+        %Post{family_id: family_id, author_id: user_id}
+        |> Post.changeset(Map.put(attrs, "kind", kind))
+        |> Repo.insert!()
+
+      insert_post_media(post.id, media_ids)
+      Repo.preload(post, [:author, post_media: [media_item: :variants]])
+    end)
   end
 
   @doc "Updates a post. Scope needs only user — membership is fetched from the post's family."
@@ -300,40 +290,56 @@ defmodule ShareCircle.Posts do
   # Private
   # ---------------------------------------------------------------------------
 
+  defp insert_post_media(_post_id, []), do: :ok
+
+  defp insert_post_media(post_id, media_ids) do
+    media_ids
+    |> Enum.with_index()
+    |> Enum.each(fn {media_id, i} ->
+      Repo.insert!(
+        PostMedia.changeset(%{post_id: post_id, media_item_id: media_id, position: i}),
+        on_conflict: :nothing
+      )
+    end)
+  end
+
   defp member?(family_id, user_id) do
     not is_nil(Families.get_membership_for_user(family_id, user_id))
   end
 
   defp get_visible_post(post_id, user_id) do
-    case Repo.get_by(Post, id: post_id, deleted_at: nil) do
-      nil -> {:error, :not_found}
-      post -> if member?(post.family_id, user_id), do: {:ok, post}, else: {:error, :not_found}
+    case Repo.get(Post, post_id) do
+      %Post{deleted_at: nil} = post ->
+        if member?(post.family_id, user_id), do: {:ok, post}, else: {:error, :not_found}
+
+      _ ->
+        {:error, :not_found}
     end
   end
 
   defp load_post_with_membership(post_id, user_id) do
-    case Repo.get_by(Post, id: post_id, deleted_at: nil) do
-      nil ->
-        {:error, :not_found}
-
-      post ->
+    case Repo.get(Post, post_id) do
+      %Post{deleted_at: nil} = post ->
         case Families.get_membership_for_user(post.family_id, user_id) do
           nil -> {:error, :not_found}
           membership -> {:ok, post, membership}
         end
+
+      _ ->
+        {:error, :not_found}
     end
   end
 
   defp load_comment_with_membership(comment_id, user_id) do
-    case Repo.get_by(Comment, id: comment_id, deleted_at: nil) do
-      nil ->
-        {:error, :not_found}
-
-      comment ->
+    case Repo.get(Comment, comment_id) do
+      %Comment{deleted_at: nil} = comment ->
         case Families.get_membership_for_user(comment.family_id, user_id) do
           nil -> {:error, :not_found}
           membership -> {:ok, comment, membership}
         end
+
+      _ ->
+        {:error, :not_found}
     end
   end
 
@@ -367,17 +373,15 @@ defmodule ShareCircle.Posts do
   end
 
   defp decode_cursor(cursor) do
-    try do
-      with {:ok, bin} <- Base.url_decode64(cursor, padding: false),
-           {ts_us, id} when is_integer(ts_us) and is_binary(id) <-
-             :erlang.binary_to_term(bin, [:safe]) do
-        {:ok, {DateTime.from_unix!(ts_us, :microsecond), id}}
-      else
-        _ -> :error
-      end
-    rescue
+    with {:ok, bin} <- Base.url_decode64(cursor, padding: false),
+         {ts_us, id} when is_integer(ts_us) and is_binary(id) <-
+           :erlang.binary_to_term(bin, [:safe]) do
+      {:ok, {DateTime.from_unix!(ts_us, :microsecond), id}}
+    else
       _ -> :error
     end
+  rescue
+    _ -> :error
   end
 
   defp encode_cursor(%Post{inserted_at: ts, id: id}) do

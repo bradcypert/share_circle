@@ -4,63 +4,60 @@ defmodule ShareCircleWeb.ChatLive do
   alias ShareCircle.Chat
   alias ShareCircle.Families
   alias ShareCircle.PubSub
+  alias ShareCircleWeb.LiveHelpers
 
   @impl true
   def mount(%{"family_id" => family_id} = params, _session, socket) do
     user = socket.assigns.current_scope.user
 
     case ShareCircle.Families.get_membership_for_user(family_id, user.id) do
-      nil ->
-        {:ok, push_navigate(socket, to: ~p"/families")}
-
-      %{family: family} = membership ->
-        scope = %{socket.assigns.current_scope | family: family, membership: membership}
-        conversations = Chat.list_conversations(scope)
-
-        conversation_id = params["conversation_id"]
-
-        {active_conv, messages, msg_pagination} =
-          case conversation_id do
-            nil ->
-              case conversations do
-                [first | _] -> load_conversation(scope, first.id)
-                [] -> {nil, [], %{next_cursor: nil}}
-              end
-
-            id ->
-              load_conversation(scope, id)
-          end
-
-        if active_conv do
-          PubSub.subscribe(PubSub.conversation_topic(active_conv.id))
-        end
-
-        family_members =
-          scope
-          |> Families.list_members()
-          |> Enum.reject(&(&1.user_id == user.id))
-
-        {:ok,
-         socket
-         |> assign(:current_scope, scope)
-         |> assign(:family_id, family_id)
-         |> assign(:conversations, conversations)
-         |> assign(:active_conv, active_conv)
-         |> assign(:messages, messages)
-         |> assign(:message_pagination, msg_pagination)
-         |> assign(:message_form, to_form(%{"body" => ""}, as: "message"))
-         |> assign(:typing_users, [])
-         |> assign(:family_members, family_members)
-         |> assign(:new_conv_open, false)
-         |> assign(:new_conv_kind, "direct")
-         |> assign(:new_conv_name, "")
-         |> assign(:new_conv_member_ids, [])
-         |> assign(:editing_message_id, nil)
-         |> assign(:editing_message_body, "")
-         |> assign(:show_sidebar, false)
-         |> assign(:typing_timer, nil)}
+      nil -> {:ok, push_navigate(socket, to: ~p"/families")}
+      %{family: family} = membership -> do_mount(socket, params, family_id, family, membership)
     end
   end
+
+  defp do_mount(socket, params, family_id, family, membership) do
+    scope = %{socket.assigns.current_scope | family: family, membership: membership}
+    conversations = Chat.list_conversations(scope)
+
+    {active_conv, messages, msg_pagination} = initial_conversation(scope, conversations, params)
+
+    if active_conv, do: PubSub.subscribe(PubSub.conversation_topic(active_conv.id))
+
+    family_members =
+      scope
+      |> Families.list_members()
+      |> Enum.reject(&(&1.user_id == socket.assigns.current_scope.user.id))
+
+    avatar_urls = LiveHelpers.build_avatar_urls(scope, [scope.user | Enum.map(messages, & &1.author)])
+
+    {:ok,
+     socket
+     |> assign(:current_scope, scope)
+     |> assign(:family_id, family_id)
+     |> assign(:conversations, conversations)
+     |> assign(:active_conv, active_conv)
+     |> assign(:messages, messages)
+     |> assign(:message_pagination, msg_pagination)
+     |> assign(:message_form, to_form(%{"body" => ""}, as: "message"))
+     |> assign(:typing_users, [])
+     |> assign(:family_members, family_members)
+     |> assign(:new_conv_open, false)
+     |> assign(:new_conv_kind, "direct")
+     |> assign(:new_conv_name, "")
+     |> assign(:new_conv_member_ids, [])
+     |> assign(:editing_message_id, nil)
+     |> assign(:editing_message_body, "")
+     |> assign(:show_sidebar, false)
+     |> assign(:typing_timer, nil)
+     |> assign(:avatar_urls, avatar_urls)}
+  end
+
+  defp initial_conversation(scope, _conversations, %{"conversation_id" => id}),
+    do: load_conversation(scope, id)
+
+  defp initial_conversation(scope, [first | _], _params), do: load_conversation(scope, first.id)
+  defp initial_conversation(_scope, [], _params), do: {nil, [], %{next_cursor: nil}}
 
   @impl true
   def handle_params(%{"conversation_id" => conv_id}, _uri, socket) do
@@ -80,11 +77,14 @@ defmodule ShareCircleWeb.ChatLive do
         PubSub.subscribe(PubSub.conversation_topic(conv.id))
       end
 
+      new_avatar_urls = LiveHelpers.build_avatar_urls(scope, Enum.map(messages, & &1.author))
+
       {:noreply,
        socket
        |> assign(:active_conv, conv)
        |> assign(:messages, messages)
        |> assign(:message_pagination, msg_pagination)
+       |> update(:avatar_urls, &Map.merge(&1, new_avatar_urls))
        |> assign(:typing_users, [])}
     end
   end
@@ -209,11 +209,16 @@ defmodule ShareCircleWeb.ChatLive do
         {:noreply,
          socket
          |> assign(:message_form, to_form(%{"body" => ""}, as: "message"))
-         |> assign(:typing_timer, nil)}
+         |> assign(:typing_timer, nil)
+         |> push_event("clear-message-input", %{})}
 
       {:error, _} ->
         {:noreply, put_flash(socket, :error, "Could not send message.")}
     end
+  end
+
+  def handle_event("update_message", %{"message" => %{"body" => body}}, socket) do
+    {:noreply, assign(socket, :message_form, to_form(%{"body" => body}, as: "message"))}
   end
 
   def handle_event("typing", _params, socket) do
@@ -248,10 +253,13 @@ defmodule ShareCircleWeb.ChatLive do
     {:ok, {older_messages, pagination}} =
       Chat.list_messages(scope, conv.id, cursor: cursor)
 
+    new_avatar_urls = LiveHelpers.build_avatar_urls(scope, Enum.map(older_messages, & &1.author))
+
     {:noreply,
      socket
      |> update(:messages, &(Enum.reverse(older_messages) ++ &1))
-     |> assign(:message_pagination, pagination)}
+     |> assign(:message_pagination, pagination)
+     |> update(:avatar_urls, &Map.merge(&1, new_avatar_urls))}
   end
 
   def handle_event("select_conversation", %{"id" => conv_id}, socket) do
@@ -263,7 +271,12 @@ defmodule ShareCircleWeb.ChatLive do
 
   @impl true
   def handle_info({:message_created, %{message: message}}, socket) do
-    {:noreply, update(socket, :messages, &(&1 ++ [message]))}
+    new_avatar_urls = LiveHelpers.build_avatar_urls(socket.assigns.current_scope, [message.author])
+
+    {:noreply,
+     socket
+     |> update(:messages, &(&1 ++ [message]))
+     |> update(:avatar_urls, &Map.merge(&1, new_avatar_urls))}
   end
 
   def handle_info({:message_updated, %{message: message}}, socket) do
@@ -281,8 +294,12 @@ defmodule ShareCircleWeb.ChatLive do
   end
 
   def handle_info({:typing_started, %{user_id: user_id}}, socket) do
-    typing = Enum.uniq([user_id | socket.assigns.typing_users])
-    {:noreply, assign(socket, :typing_users, typing)}
+    if user_id == socket.assigns.current_scope.user.id do
+      {:noreply, socket}
+    else
+      typing = Enum.uniq([user_id | socket.assigns.typing_users])
+      {:noreply, assign(socket, :typing_users, typing)}
+    end
   end
 
   def handle_info({:typing_stopped, %{user_id: user_id}}, socket) do

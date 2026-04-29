@@ -13,8 +13,8 @@ defmodule ShareCircleWeb.Plugs.LoadCurrentFamily do
   import Plug.Conn
   import Phoenix.Controller, only: [json: 2]
 
-  alias ShareCircle.Families
   alias ShareCircle.Accounts.Scope
+  alias ShareCircle.Families
 
   def init(opts), do: opts
 

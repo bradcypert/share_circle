@@ -11,8 +11,8 @@ defmodule ShareCircleWeb.Plugs.RateLimit do
   import Plug.Conn
   import Phoenix.Controller, only: [json: 2]
 
-  alias ShareCircle.RateLimiter
   alias ShareCircle.Accounts.Scope
+  alias ShareCircle.RateLimiter
 
   def init(opts) do
     bucket = Keyword.fetch!(opts, :bucket)

@@ -1,4 +1,5 @@
 defmodule ShareCircleWeb.UserChannel do
+  @moduledoc false
   use Phoenix.Channel
 
   alias ShareCircle.PubSub

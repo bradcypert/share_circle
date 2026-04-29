@@ -8,14 +8,76 @@
           <span class="ml-2 text-sm font-normal text-base-content/40">{length(@members)}</span>
         </h1>
         <%= if @can_invite do %>
-          <button
-            phx-click="toggle_invite_form"
-            class="btn btn-sm btn-primary rounded-md px-4"
-          >
-            {if @show_invite_form, do: "Cancel", else: "Invite member"}
-          </button>
+          <div class="flex gap-2">
+            <button
+              phx-click="toggle_add_child_form"
+              class="btn btn-sm btn-ghost rounded-md px-3 text-base-content/60"
+            >
+              {if @show_add_child_form, do: "Cancel", else: "Add child"}
+            </button>
+            <button
+              phx-click="toggle_invite_form"
+              class="btn btn-sm btn-primary rounded-md px-4"
+            >
+              {if @show_invite_form, do: "Cancel", else: "Invite member"}
+            </button>
+          </div>
         <% end %>
       </div>
+
+      <%!-- Add child account form --%>
+      <%= if @show_add_child_form do %>
+        <div class="bg-base-100 border border-base-300 rounded-lg p-5 space-y-4">
+          <div class="space-y-1">
+            <h2 class="text-sm font-semibold text-base-content">
+              Add a child account to {@current_scope.family.name}
+            </h2>
+            <p class="text-xs text-base-content/50">
+              They'll receive an email to set up their own password. Their account will be supervised until you promote them.
+            </p>
+          </div>
+
+          <%= if @child_error do %>
+            <p class="text-xs text-error">{@child_error}</p>
+          <% end %>
+
+          <div class="space-y-3">
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-base-content/60">Display name</label>
+              <input
+                type="text"
+                phx-keyup="update_child_name"
+                phx-debounce="300"
+                value={@child_name}
+                placeholder="e.g. Emma"
+                class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors"
+              />
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs font-medium text-base-content/60">Email address</label>
+              <input
+                type="email"
+                phx-keyup="update_child_email"
+                phx-debounce="300"
+                value={@child_email}
+                placeholder="child@example.com"
+                class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-2 text-sm text-base-content placeholder-base-content/35 focus:outline-none focus:border-base-content/30 transition-colors"
+              />
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button
+              phx-click="add_child_account"
+              disabled={String.trim(@child_email) == "" or String.trim(@child_name) == ""}
+              class="btn btn-primary btn-sm rounded-md px-4 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Create account &amp; send setup email
+            </button>
+          </div>
+        </div>
+      <% end %>
 
       <%!-- Invite form --%>
       <%= if @show_invite_form do %>
@@ -76,26 +138,47 @@
       <%!-- Member list --%>
       <div class="space-y-2">
         <%= for membership <- @members do %>
-          <.link
-            navigate={~p"/families/#{@family_id}/members/#{membership.user_id}"}
-            class="flex items-center gap-4 p-4 bg-base-100 border border-base-300 rounded-lg hover:border-base-content/20 transition-colors group"
-          >
-            <div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
-              <span class="text-sm font-semibold text-primary">
-                {String.first(membership.user.display_name || membership.user.email)}
-              </span>
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-semibold text-base-content truncate">
-                {membership.user.display_name || membership.user.email}
-              </p>
-              <p class="text-xs text-base-content/40 capitalize">{membership.role}</p>
-            </div>
-            <.icon
-              name="hero-chevron-right"
-              class="size-4 text-base-content/25 group-hover:text-base-content/50 transition-colors"
-            />
-          </.link>
+          <div class="flex items-center gap-4 p-4 bg-base-100 border border-base-300 rounded-lg">
+            <.link
+              navigate={~p"/families/#{@family_id}/members/#{membership.user_id}"}
+              class="flex items-center gap-4 flex-1 min-w-0 group"
+            >
+              <div class="w-10 h-10 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0">
+                <span class="text-sm font-semibold text-primary">
+                  {String.first(membership.user.display_name || membership.user.email)}
+                </span>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <p class="text-sm font-semibold text-base-content truncate">
+                    {membership.user.display_name || membership.user.email}
+                  </p>
+                  <%= if membership.role == "child" do %>
+                    <span class="text-xs bg-secondary/15 text-secondary px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                      child
+                    </span>
+                  <% end %>
+                </div>
+                <p class="text-xs text-base-content/40 capitalize">{membership.role}</p>
+              </div>
+              <.icon
+                name="hero-chevron-right"
+                class="size-4 text-base-content/25 group-hover:text-base-content/50 transition-colors flex-shrink-0"
+              />
+            </.link>
+
+            <%!-- Promote button — only visible to eligible users for child members --%>
+            <%= if membership.role == "child" and can_promote?(@current_scope, membership.user) do %>
+              <button
+                phx-click="confirm_promote"
+                phx-value-user_id={membership.user_id}
+                class="text-xs text-base-content/40 hover:text-primary transition-colors flex-shrink-0 border border-base-300 rounded px-2 py-1"
+                title="Promote to full member"
+              >
+                Promote
+              </button>
+            <% end %>
+          </div>
         <% end %>
       </div>
     </div>
@@ -137,4 +220,34 @@
       </div>
     <% end %>
   </div>
+
+  <%!-- Promote confirmation modal --%>
+  <%= if @promote_target do %>
+    <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div class="bg-base-100 rounded-xl border border-base-300 p-6 max-w-sm w-full space-y-4">
+        <h3 class="text-base font-semibold text-base-content">Promote to full member?</h3>
+        <p class="text-sm text-base-content/60">
+          This will send <span class="font-medium text-base-content">{@promote_target.user.display_name}</span>
+          an email at <span class="font-medium text-base-content">{@promote_target.user.email}</span>
+          inviting them to set their password and take full ownership of their account.
+          You won't be their guardian after they accept.
+        </p>
+        <div class="flex gap-3 justify-end">
+          <button
+            phx-click="cancel_promote"
+            class="btn btn-sm btn-ghost rounded-md"
+          >
+            Cancel
+          </button>
+          <button
+            phx-click="promote_member"
+            phx-value-user_id={@promote_target.user_id}
+            class="btn btn-sm btn-primary rounded-md"
+          >
+            Send promotion email
+          </button>
+        </div>
+      </div>
+    </div>
+  <% end %>
 </.app_shell>

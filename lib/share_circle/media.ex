@@ -103,14 +103,26 @@ defmodule ShareCircle.Media do
 
   @doc "Returns a media item if the user's family owns it."
   def get_media_item(%Scope{family: family}, media_item_id) do
-    case Repo.get_by(MediaItem, id: media_item_id, family_id: family.id, deleted_at: nil) do
+    item =
+      from(m in MediaItem,
+        where: m.id == ^media_item_id and m.family_id == ^family.id and is_nil(m.deleted_at)
+      )
+      |> Repo.one()
+
+    case item do
       nil -> {:error, :not_found}
       item -> {:ok, Repo.preload(item, :variants)}
     end
   end
 
   defp get_pending_session(session_id, family_id) do
-    case Repo.get_by(UploadSession, id: session_id, family_id: family_id, completed_at: nil) do
+    session =
+      from(s in UploadSession,
+        where: s.id == ^session_id and s.family_id == ^family_id and is_nil(s.completed_at)
+      )
+      |> Repo.one()
+
+    case session do
       nil ->
         {:error, :not_found}
 

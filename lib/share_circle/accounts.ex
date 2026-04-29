@@ -7,6 +7,7 @@ defmodule ShareCircle.Accounts do
   alias ShareCircle.Repo
 
   alias ShareCircle.Accounts.{User, UserNotifier, UserToken}
+  alias ShareCircle.Families.Membership
 
   ## Database getters
 
@@ -357,9 +358,8 @@ defmodule ShareCircle.Accounts do
 
   @doc "Looks up the user by a raw API Bearer token. Returns %User{} or nil."
   def get_user_by_api_token(token) when is_binary(token) do
-    with {:ok, query} <- UserToken.verify_api_token_query(token) do
-      Repo.one(query)
-    else
+    case UserToken.verify_api_token_query(token) do
+      {:ok, query} -> Repo.one(query)
       _ -> nil
     end
   end
@@ -391,7 +391,125 @@ defmodule ShareCircle.Accounts do
     end
   end
 
-  @doc "Updates the user's profile fields (display_name, timezone, locale)."
+  ## Supervised accounts
+
+  @doc """
+  Creates a supervised (child) account on behalf of the given guardian user.
+
+  The child has no password at creation — they activate their account via email.
+  Returns `{:ok, %User{}}` or `{:error, %Ecto.Changeset{}}`.
+  """
+  def create_child_account(%User{} = guardian, attrs) do
+    %User{}
+    |> User.supervised_registration_changeset(
+      Map.put(attrs, "guardian_user_id", guardian.id)
+    )
+    |> Repo.insert()
+  end
+
+  @doc "Sends the child their account activation email (link valid 7 days)."
+  def deliver_child_activation_instructions(%User{} = child, guardian_display_name, url_fun)
+      when is_function(url_fun, 1) do
+    {encoded_token, user_token} = UserToken.build_child_activation_token(child)
+    Repo.insert!(user_token)
+
+    UserNotifier.deliver_child_activation_instructions(
+      child,
+      guardian_display_name,
+      url_fun.(encoded_token)
+    )
+  end
+
+  @doc """
+  Completes child account activation: sets a password and confirms the account.
+
+  Returns `{:ok, %User{}}` or `{:error, changeset | :invalid_or_expired_token}`.
+  """
+  def complete_child_activation(token, attrs) do
+    with {:ok, query} <- UserToken.verify_child_activation_token_query(token),
+         {%User{} = user, _token_record} <- Repo.one(query) do
+      Repo.transact(fn ->
+        with {:ok, activated_user} <-
+               user |> User.activation_changeset(attrs) |> Repo.update() do
+          Repo.delete_all(from(t in UserToken, where: t.user_id == ^activated_user.id))
+          {:ok, activated_user}
+        end
+      end)
+    else
+      _ -> {:error, :invalid_or_expired_token}
+    end
+  end
+
+  @doc "Sends the child a promotion email (link valid 7 days). Caller must be guardian/admin/owner."
+  def deliver_promotion_instructions(%User{} = child, guardian_display_name, url_fun)
+      when is_function(url_fun, 1) do
+    {encoded_token, user_token} = UserToken.build_promotion_token(child)
+    Repo.insert!(user_token)
+
+    UserNotifier.deliver_promotion_instructions(
+      child,
+      guardian_display_name,
+      url_fun.(encoded_token)
+    )
+  end
+
+  @doc """
+  Completes promotion: sets a new password, optionally changes email, clears `is_supervised`,
+  records `promoted_at`, bumps all `child` memberships to `member`, and deletes all tokens.
+
+  Notifies the guardian by email afterward (best-effort, outside the transaction).
+
+  Returns `{:ok, %User{}}` or `{:error, changeset | :invalid_or_expired_token}`.
+  """
+  def complete_promotion(token, attrs) do
+    with {:ok, query} <- UserToken.verify_promotion_token_query(token),
+         {%User{} = user, _token_record} <- Repo.one(query) do
+      result =
+        Repo.transact(fn ->
+          with {:ok, promoted_user} <-
+                 user |> User.promotion_changeset(attrs) |> Repo.update() do
+            Repo.delete_all(from(t in UserToken, where: t.user_id == ^promoted_user.id))
+
+            Repo.update_all(
+              from(m in Membership, where: m.user_id == ^promoted_user.id and m.role == "child"),
+              set: [role: "member"]
+            )
+
+            {:ok, promoted_user}
+          end
+        end)
+
+      with {:ok, promoted_user} <- result do
+        maybe_notify_guardian(promoted_user)
+      end
+
+      result
+    else
+      _ -> {:error, :invalid_or_expired_token}
+    end
+  end
+
+  @doc """
+  Generates a short-lived magic-link login token for a user who just activated or
+  was promoted. The token can be used once at `GET /users/log-in/:token` to log
+  the user in without requiring them to re-enter their password.
+  """
+  def generate_post_activation_login_token(%User{} = user) do
+    {encoded_token, user_token} = UserToken.build_email_token(user, "login")
+    Repo.insert!(user_token)
+    encoded_token
+  end
+
+  defp maybe_notify_guardian(%User{guardian_user_id: nil}), do: :ok
+
+  defp maybe_notify_guardian(%User{guardian_user_id: guardian_id} = promoted_user) do
+    case Repo.get(User, guardian_id) do
+      nil -> :ok
+      guardian -> UserNotifier.deliver_promotion_complete_notification(guardian, promoted_user.display_name)
+    end
+  end
+
+  @doc "Updates the user's profile fields (display_name, bio, location, birthday, interests, avatar, cover, pinned_post, timezone, locale)."
   def update_user_profile(%User{} = user, attrs) do
     user
     |> User.profile_changeset(attrs)

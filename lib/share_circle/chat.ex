@@ -34,19 +34,7 @@ defmodule ShareCircle.Chat do
         {:ok, conv}
 
       nil ->
-        Repo.transaction(fn ->
-          conv =
-            Repo.insert!(Conversation.create_changeset(%{family_id: family_id, kind: "family"}))
-
-          # Add all existing members
-          memberships = Families.list_memberships_for_family(family_id)
-
-          Enum.each(memberships, fn m ->
-            add_member_to_conversation(conv.id, m.user_id, family_id)
-          end)
-
-          conv
-        end)
+        Repo.transaction(fn -> create_family_conversation(family_id) end)
     end
   end
 
@@ -92,12 +80,8 @@ defmodule ShareCircle.Chat do
             })
           )
 
-        # Always add creator
-        all_user_ids = Enum.uniq([user.id | member_user_ids])
-
-        Enum.each(all_user_ids, fn uid ->
-          add_member_to_conversation(conv.id, uid, family.id)
-        end)
+        Enum.uniq([user.id | member_user_ids])
+        |> Enum.each(&add_member_to_conversation(conv.id, &1, family.id))
 
         Repo.preload(conv, members: :user)
       end)
@@ -136,7 +120,7 @@ defmodule ShareCircle.Chat do
         conversation_id,
         attrs
       ) do
-    with :ok <- Policy.authorize(membership, :send_message),
+    with :ok <- Policy.authorize(membership, :create_message),
          {:ok, conv} <- get_conversation(%Scope{user: user, family: family}, conversation_id) do
       msg_attrs = %{
         conversation_id: conv.id,
@@ -189,11 +173,12 @@ defmodule ShareCircle.Chat do
 
   @doc "Updates the caller's last_read_message_id for the conversation."
   def mark_read(%Scope{user: user, family: family}, conversation_id, message_id) do
-    case Repo.get_by(ConversationMember,
-           conversation_id: conversation_id,
-           user_id: user.id,
-           left_at: nil
-         ) do
+    case from(cm in ConversationMember,
+           where:
+             cm.conversation_id == ^conversation_id and cm.user_id == ^user.id and
+               is_nil(cm.left_at)
+         )
+         |> Repo.one() do
       nil ->
         {:error, :not_found}
 
@@ -235,19 +220,25 @@ defmodule ShareCircle.Chat do
   # Private
   # ---------------------------------------------------------------------------
 
+  defp create_family_conversation(family_id) do
+    conv = Repo.insert!(Conversation.create_changeset(%{family_id: family_id, kind: "family"}))
+
+    Families.list_memberships_for_family(family_id)
+    |> Enum.each(&add_member_to_conversation(conv.id, &1.user_id, family_id))
+
+    conv
+  end
+
   defp get_editable_message(message_id, user_id) do
-    case Repo.get_by(Message, id: message_id, author_id: user_id, deleted_at: nil) do
-      nil -> {:error, :not_found}
-      message -> {:ok, message}
+    case Repo.get(Message, message_id) do
+      %Message{deleted_at: nil, author_id: ^user_id} = message -> {:ok, message}
+      _ -> {:error, :not_found}
     end
   end
 
   defp load_message_with_membership(message_id, user_id, family) do
-    case Repo.get_by(Message, id: message_id, family_id: family.id, deleted_at: nil) do
-      nil ->
-        {:error, :not_found}
-
-      message ->
+    case Repo.get(Message, message_id) do
+      %Message{deleted_at: nil, family_id: fid} = message when fid == family.id ->
         membership = Families.get_membership_for_user(family.id, user_id)
 
         cond do
@@ -256,6 +247,9 @@ defmodule ShareCircle.Chat do
           membership.role in ~w(owner admin) -> {:ok, message}
           true -> {:error, :unauthorized}
         end
+
+      _ ->
+        {:error, :not_found}
     end
   end
 
@@ -289,12 +283,10 @@ defmodule ShareCircle.Chat do
   end
 
   defp decode_cursor(cursor) do
-    try do
-      {ts, id} = cursor |> Base.decode64!() |> :erlang.binary_to_term([:safe])
-      {:ok, {ts, id}}
-    rescue
-      _ -> :error
-    end
+    {ts, id} = cursor |> Base.decode64!() |> :erlang.binary_to_term([:safe])
+    {:ok, {ts, id}}
+  rescue
+    _ -> :error
   end
 
   defp split_page(items, limit) when length(items) > limit do

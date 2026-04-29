@@ -11,6 +11,8 @@ defmodule ShareCircle.Accounts.UserToken do
   @reset_password_validity_in_minutes 30
   @confirmation_validity_in_days 7
   @change_email_validity_in_days 7
+  @child_activation_validity_in_days 7
+  @promotion_validity_in_days 7
   @session_validity_in_days 14
   @api_token_validity_in_days 365
 
@@ -169,6 +171,56 @@ defmodule ShareCircle.Accounts.UserToken do
           from token in by_token_and_context_query(hashed_token, "reset_password"),
             join: user in assoc(token, :user),
             where: token.inserted_at > ago(@reset_password_validity_in_minutes, "minute"),
+            where: token.sent_to == user.email,
+            select: {user, token}
+
+        {:ok, query}
+
+      :error ->
+        :error
+    end
+  end
+
+  @doc "Builds a 7-day child-account activation token. Returns {raw_token, %UserToken{}}."
+  def build_child_activation_token(user) do
+    build_hashed_token(user, "child_activation", user.email)
+  end
+
+  @doc "Returns a query that resolves the user for a valid child activation token."
+  def verify_child_activation_token_query(token) do
+    case Base.url_decode64(token, padding: false) do
+      {:ok, decoded_token} ->
+        hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+
+        query =
+          from token in by_token_and_context_query(hashed_token, "child_activation"),
+            join: user in assoc(token, :user),
+            where: token.inserted_at > ago(@child_activation_validity_in_days, "day"),
+            where: token.sent_to == user.email,
+            select: {user, token}
+
+        {:ok, query}
+
+      :error ->
+        :error
+    end
+  end
+
+  @doc "Builds a 7-day promotion token. Returns {raw_token, %UserToken{}}."
+  def build_promotion_token(user) do
+    build_hashed_token(user, "promotion", user.email)
+  end
+
+  @doc "Returns a query that resolves the user for a valid promotion token."
+  def verify_promotion_token_query(token) do
+    case Base.url_decode64(token, padding: false) do
+      {:ok, decoded_token} ->
+        hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+
+        query =
+          from token in by_token_and_context_query(hashed_token, "promotion"),
+            join: user in assoc(token, :user),
+            where: token.inserted_at > ago(@promotion_validity_in_days, "day"),
             where: token.sent_to == user.email,
             select: {user, token}
 
