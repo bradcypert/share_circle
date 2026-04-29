@@ -29,7 +29,8 @@ defmodule ShareCircleWeb.ChatLive do
       |> Families.list_members()
       |> Enum.reject(&(&1.user_id == socket.assigns.current_scope.user.id))
 
-    avatar_urls = LiveHelpers.build_avatar_urls(scope, [scope.user | Enum.map(messages, & &1.author)])
+    avatar_urls =
+      LiveHelpers.build_avatar_urls(scope, [scope.user | Enum.map(messages, & &1.author)])
 
     {:ok,
      socket
@@ -271,7 +272,8 @@ defmodule ShareCircleWeb.ChatLive do
 
   @impl true
   def handle_info({:message_created, %{message: message}}, socket) do
-    new_avatar_urls = LiveHelpers.build_avatar_urls(socket.assigns.current_scope, [message.author])
+    new_avatar_urls =
+      LiveHelpers.build_avatar_urls(socket.assigns.current_scope, [message.author])
 
     {:noreply,
      socket

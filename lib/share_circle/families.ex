@@ -74,7 +74,10 @@ defmodule ShareCircle.Families do
   Used by guardians who create child accounts directly rather than via invitation.
   Requires `:invite_member` permission.
   """
-  def add_supervised_member(%Scope{membership: membership, family: family} = _scope, child_user_id) do
+  def add_supervised_member(
+        %Scope{membership: membership, family: family} = _scope,
+        child_user_id
+      ) do
     with :ok <- Policy.authorize(membership, :invite_member),
          :ok <- check_member_limit(family.id) do
       insert_membership(%{id: family.id}, %{id: child_user_id}, "child")

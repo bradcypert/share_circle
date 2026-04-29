@@ -144,7 +144,8 @@ defmodule ShareCircleWeb.MembersLive do
     email = String.trim(socket.assigns.child_email)
     name = String.trim(socket.assigns.child_name)
 
-    with {:ok, child} <- Accounts.create_child_account(guardian, %{"email" => email, "display_name" => name}),
+    with {:ok, child} <-
+           Accounts.create_child_account(guardian, %{"email" => email, "display_name" => name}),
          {:ok, _membership} <- Families.add_supervised_member(scope, child.id),
          {:ok, _email} <-
            Accounts.deliver_child_activation_instructions(
@@ -167,7 +168,8 @@ defmodule ShareCircleWeb.MembersLive do
         {:noreply, assign(socket, :child_error, msg)}
 
       {:error, :unauthorized} ->
-        {:noreply, assign(socket, :child_error, "You don't have permission to add child accounts.")}
+        {:noreply,
+         assign(socket, :child_error, "You don't have permission to add child accounts.")}
 
       {:error, _} ->
         {:noreply, assign(socket, :child_error, "Something went wrong. Please try again.")}

@@ -401,9 +401,7 @@ defmodule ShareCircle.Accounts do
   """
   def create_child_account(%User{} = guardian, attrs) do
     %User{}
-    |> User.supervised_registration_changeset(
-      Map.put(attrs, "guardian_user_id", guardian.id)
-    )
+    |> User.supervised_registration_changeset(Map.put(attrs, "guardian_user_id", guardian.id))
     |> Repo.insert()
   end
 
@@ -504,8 +502,11 @@ defmodule ShareCircle.Accounts do
 
   defp maybe_notify_guardian(%User{guardian_user_id: guardian_id} = promoted_user) do
     case Repo.get(User, guardian_id) do
-      nil -> :ok
-      guardian -> UserNotifier.deliver_promotion_complete_notification(guardian, promoted_user.display_name)
+      nil ->
+        :ok
+
+      guardian ->
+        UserNotifier.deliver_promotion_complete_notification(guardian, promoted_user.display_name)
     end
   end
 

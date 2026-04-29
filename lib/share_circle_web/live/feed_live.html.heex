@@ -1,4 +1,8 @@
-<.app_shell current_scope={@current_scope} active_tab="feed" current_avatar_url={Map.get(@avatar_urls, @current_scope.user.id)}>
+<.app_shell
+  current_scope={@current_scope}
+  active_tab="feed"
+  current_avatar_url={Map.get(@avatar_urls, @current_scope.user.id)}
+>
   <div class="max-w-2xl mx-auto px-4 py-8 space-y-6">
     <%!-- Post composer --%>
     <form
@@ -8,7 +12,12 @@
       phx-drop-target={@uploads.media.ref}
     >
       <div class="flex items-start gap-3">
-        <.user_avatar user={@current_scope.user} url={Map.get(@avatar_urls, @current_scope.user.id)} size={:md} class="mt-0.5" />
+        <.user_avatar
+          user={@current_scope.user}
+          url={Map.get(@avatar_urls, @current_scope.user.id)}
+          size={:md}
+          class="mt-0.5"
+        />
         <textarea
           id="post-composer-body"
           name="body"
@@ -28,7 +37,10 @@
           <%= for entry <- @uploads.media.entries do %>
             <div class="relative rounded-lg overflow-hidden bg-base-200 aspect-square group">
               <%= if String.starts_with?(entry.client_type, "image/") do %>
-                <.live_img_preview entry={entry} class="absolute inset-0 w-full h-full object-cover" />
+                <.live_img_preview
+                  entry={entry}
+                  class="absolute inset-0 w-full h-full object-cover"
+                />
               <% else %>
                 <div class="w-full h-full flex flex-col items-center justify-center gap-1">
                   <.icon name="hero-film" class="size-8 text-base-content/40" />
@@ -105,12 +117,21 @@
           <%!-- Post header + body --%>
           <div class="p-5 space-y-2.5">
             <div class="flex items-start gap-2.5">
-              <.link navigate={post.author && ~p"/families/#{@current_scope.family.id}/members/#{post.author.id}"}>
-                <.user_avatar user={post.author || %{display_name: nil, email: nil}} url={post.author && Map.get(@avatar_urls, post.author.id)} size={:md} />
+              <.link navigate={
+                post.author && ~p"/families/#{@current_scope.family.id}/members/#{post.author.id}"
+              }>
+                <.user_avatar
+                  user={post.author || %{display_name: nil, email: nil}}
+                  url={post.author && Map.get(@avatar_urls, post.author.id)}
+                  size={:md}
+                />
               </.link>
               <div class="flex-1 min-w-0">
                 <.link
-                  navigate={post.author && ~p"/families/#{@current_scope.family.id}/members/#{post.author.id}"}
+                  navigate={
+                    post.author &&
+                      ~p"/families/#{@current_scope.family.id}/members/#{post.author.id}"
+                  }
                   class="text-sm font-semibold text-base-content leading-tight hover:underline"
                 >
                   {(post.author && post.author.display_name) || "Unknown"}
@@ -177,7 +198,9 @@
               </div>
             <% else %>
               <%= if post.body && post.body != "" do %>
-                <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{String.trim(post.body)}</p>
+                <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">
+                  {String.trim(post.body)}
+                </p>
               <% end %>
             <% end %>
 
@@ -282,7 +305,12 @@
                 <div class="px-5 py-3 space-y-3">
                   <%= for comment <- @expanded_comments do %>
                     <div class="flex items-start gap-2.5">
-                      <.user_avatar user={comment.author} url={Map.get(@avatar_urls, comment.author.id)} size={:xs} class="mt-0.5" />
+                      <.user_avatar
+                        user={comment.author}
+                        url={Map.get(@avatar_urls, comment.author.id)}
+                        size={:xs}
+                        class="mt-0.5"
+                      />
                       <div class="flex-1 min-w-0">
                         <div class="inline-block bg-base-100 border border-base-300 rounded-lg px-3 py-2">
                           <p class="text-xs font-semibold text-base-content leading-tight">
@@ -303,7 +331,12 @@
 
               <%!-- Comment input --%>
               <div class="px-5 pb-4 flex items-start gap-2.5">
-                <.user_avatar user={@current_scope.user} url={Map.get(@avatar_urls, @current_scope.user.id)} size={:xs} class="mt-1" />
+                <.user_avatar
+                  user={@current_scope.user}
+                  url={Map.get(@avatar_urls, @current_scope.user.id)}
+                  size={:xs}
+                  class="mt-1"
+                />
                 <div class="flex-1 flex items-center gap-2">
                   <input
                     type="text"

@@ -94,7 +94,9 @@ defmodule ShareCircleWeb.FeedLive do
     media_ids =
       consume_uploaded_entries(socket, :media, fn %{session_id: session_id}, _entry ->
         case Media.complete_upload(scope, session_id) do
-          {:ok, item} -> {:ok, item.id}
+          {:ok, item} ->
+            {:ok, item.id}
+
           {:error, reason} ->
             require Logger
             Logger.error("[FeedLive] complete_upload failed: #{inspect(reason)}")
@@ -133,7 +135,8 @@ defmodule ShareCircleWeb.FeedLive do
           _ -> []
         end
 
-      new_avatar_urls = build_avatar_urls(socket.assigns.current_scope, Enum.map(comments, & &1.author))
+      new_avatar_urls =
+        build_avatar_urls(socket.assigns.current_scope, Enum.map(comments, & &1.author))
 
       {:noreply,
        socket
@@ -320,8 +323,8 @@ defmodule ShareCircleWeb.FeedLive do
      socket
      |> assign(:media_urls, build_media_urls(scope, posts))
      |> assign(:avatar_urls, build_avatar_urls(scope, all_users))}
-
   end
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   defp maybe_remove_comment(%{assigns: %{expanded_post_id: nil}} = socket, _id), do: socket

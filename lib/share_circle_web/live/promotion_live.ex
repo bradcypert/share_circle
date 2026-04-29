@@ -27,7 +27,11 @@ defmodule ShareCircleWeb.PromotionLive do
     {:noreply, assign(socket, :state, :set_password)}
   end
 
-  def handle_event("promote", %{"email" => email, "password" => password, "password_confirmation" => pw_confirm}, socket) do
+  def handle_event(
+        "promote",
+        %{"email" => email, "password" => password, "password_confirmation" => pw_confirm},
+        socket
+      ) do
     attrs = %{"email" => email, "password" => password, "password_confirmation" => pw_confirm}
 
     case Accounts.complete_promotion(socket.assigns.token, attrs) do
@@ -77,7 +81,6 @@ defmodule ShareCircleWeb.PromotionLive do
               <button phx-click="proceed" class="btn btn-primary w-full rounded-lg">
                 Take ownership of my account
               </button>
-
             <% :set_password -> %>
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold text-base-content">Set your new password</h2>
@@ -121,7 +124,6 @@ defmodule ShareCircleWeb.PromotionLive do
                   This is my account
                 </button>
               </.form>
-
             <% :expired -> %>
               <div class="text-center space-y-3">
                 <div class="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto">

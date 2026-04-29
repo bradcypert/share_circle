@@ -58,6 +58,7 @@ defmodule ShareCircle.Workers.ProcessImage do
          :ok <- write_variant(variant_key, data) do
       width = Vix.Vips.Image.width(resized)
       height = Vix.Vips.Image.height(resized)
+
       Repo.insert!(
         MediaVariant.changeset(%{
           media_item_id: item.id,

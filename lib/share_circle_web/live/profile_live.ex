@@ -40,7 +40,9 @@ defmodule ShareCircleWeb.ProfileLive do
         media_urls = build_media_urls(scope, posts)
         avatar_url = get_avatar_url(scope, profile_user)
         cover_url = get_cover_url(scope, profile_user)
-        current_avatar_url = if is_own_profile, do: avatar_url, else: get_avatar_url(scope, scope.user)
+
+        current_avatar_url =
+          if is_own_profile, do: avatar_url, else: get_avatar_url(scope, scope.user)
 
         {:ok,
          socket
@@ -89,7 +91,9 @@ defmodule ShareCircleWeb.ProfileLive do
   def handle_event("cancel_editing", _params, socket) do
     user = socket.assigns.profile_user
     membership = socket.assigns.profile_membership
-    {:noreply, socket |> assign(:editing, false) |> assign(:edit_form, build_edit_form(user, membership))}
+
+    {:noreply,
+     socket |> assign(:editing, false) |> assign(:edit_form, build_edit_form(user, membership))}
   end
 
   def handle_event("save_profile", %{"profile" => params}, socket) do
@@ -178,7 +182,9 @@ defmodule ShareCircleWeb.ProfileLive do
     media_item_id =
       consume_uploaded_entry(socket, entry, fn %{session_id: session_id} ->
         case Media.complete_upload(scope, session_id) do
-          {:ok, item} -> {:ok, item.id}
+          {:ok, item} ->
+            {:ok, item.id}
+
           {:error, reason} ->
             require Logger
             Logger.error("Avatar complete_upload failed: #{inspect(reason)}")
@@ -214,7 +220,9 @@ defmodule ShareCircleWeb.ProfileLive do
     media_item_id =
       consume_uploaded_entry(socket, entry, fn %{session_id: session_id} ->
         case Media.complete_upload(scope, session_id) do
-          {:ok, item} -> {:ok, item.id}
+          {:ok, item} ->
+            {:ok, item.id}
+
           {:error, reason} ->
             require Logger
             Logger.error("Cover complete_upload failed: #{inspect(reason)}")

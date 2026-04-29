@@ -187,7 +187,12 @@
             <% is_editing = @editing_message_id == msg.id %>
             <div class="flex items-start gap-3 group">
               <.link navigate={~p"/families/#{@current_scope.family.id}/members/#{msg.author.id}"}>
-                <.user_avatar user={msg.author} url={Map.get(@avatar_urls, msg.author.id)} size={:sm} class="mt-0.5" />
+                <.user_avatar
+                  user={msg.author}
+                  url={Map.get(@avatar_urls, msg.author.id)}
+                  size={:sm}
+                  class="mt-0.5"
+                />
               </.link>
               <div class="flex-1 min-w-0">
                 <div class="flex items-baseline gap-2">
@@ -265,7 +270,12 @@
 
         <%!-- Message input --%>
         <div class="px-5 py-3 border-t border-base-300 flex-shrink-0">
-          <.form for={@message_form} phx-submit="send_message" phx-change="update_message" class="flex items-center gap-3">
+          <.form
+            for={@message_form}
+            phx-submit="send_message"
+            phx-change="update_message"
+            class="flex items-center gap-3"
+          >
             <input
               id="message-input"
               type="text"

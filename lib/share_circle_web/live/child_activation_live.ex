@@ -26,7 +26,11 @@ defmodule ShareCircleWeb.ChildActivationLive do
     {:noreply, assign(socket, :state, :set_password)}
   end
 
-  def handle_event("activate", %{"email" => email, "password" => password, "password_confirmation" => pw_confirm}, socket) do
+  def handle_event(
+        "activate",
+        %{"email" => email, "password" => password, "password_confirmation" => pw_confirm},
+        socket
+      ) do
     attrs = %{"email" => email, "password" => password, "password_confirmation" => pw_confirm}
 
     case Accounts.complete_child_activation(socket.assigns.token, attrs) do
@@ -42,7 +46,10 @@ defmodule ShareCircleWeb.ChildActivationLive do
         {:noreply,
          socket
          |> assign(:state, :expired)
-         |> assign(:error, "This activation link has expired or is invalid. Ask your guardian to resend it.")}
+         |> assign(
+           :error,
+           "This activation link has expired or is invalid. Ask your guardian to resend it."
+         )}
 
       {:error, %Ecto.Changeset{} = cs} ->
         {:noreply, assign(socket, :form, to_form(cs, action: :validate))}
@@ -73,7 +80,6 @@ defmodule ShareCircleWeb.ChildActivationLive do
               <button phx-click="proceed" class="btn btn-primary w-full rounded-lg">
                 Set up my account
               </button>
-
             <% :set_password -> %>
               <div class="space-y-2">
                 <h2 class="text-lg font-semibold text-base-content">Choose your password</h2>
@@ -117,7 +123,6 @@ defmodule ShareCircleWeb.ChildActivationLive do
                   Activate my account
                 </button>
               </.form>
-
             <% :expired -> %>
               <div class="text-center space-y-3">
                 <div class="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center mx-auto">

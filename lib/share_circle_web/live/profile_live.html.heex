@@ -1,13 +1,14 @@
-<.app_shell current_scope={@current_scope} active_tab={if @is_own_profile, do: "profile", else: "members"} current_avatar_url={@current_avatar_url}>
+<.app_shell
+  current_scope={@current_scope}
+  active_tab={if @is_own_profile, do: "profile", else: "members"}
+  current_avatar_url={@current_avatar_url}
+>
   <div class="max-w-5xl mx-auto px-4 py-8">
     <div class="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-6 items-start">
-
       <%!-- ===================== LEFT COLUMN ===================== --%>
       <div class="space-y-4 md:sticky md:top-8">
-
         <%!-- Profile card --%>
         <div class="bg-base-100 border border-base-300 rounded-lg overflow-hidden">
-
           <%!-- Cover photo --%>
           <div class="relative h-28 bg-gradient-to-br from-base-300 to-base-200 group">
             <%= if @cover_url do %>
@@ -33,9 +34,17 @@
             <%!-- Avatar + edit button row --%>
             <div class="-mt-8 mb-3 flex items-end justify-between">
               <div class="relative group/avatar">
-                <.user_avatar user={@profile_user} url={@avatar_url} size={:xl} class="border-4 border-base-100" />
+                <.user_avatar
+                  user={@profile_user}
+                  url={@avatar_url}
+                  size={:xl}
+                  class="border-4 border-base-100"
+                />
                 <%= if @is_own_profile do %>
-                  <form phx-change="validate_avatar" class="absolute inset-0 rounded-full overflow-hidden">
+                  <form
+                    phx-change="validate_avatar"
+                    class="absolute inset-0 rounded-full overflow-hidden"
+                  >
                     <.live_file_input upload={@uploads.avatar} class="sr-only" />
                     <label
                       for={@uploads.avatar.ref}
@@ -61,7 +70,9 @@
             <%= if @editing do %>
               <form phx-submit="save_profile" phx-change="validate_profile" class="space-y-3">
                 <div>
-                  <label class="block text-xs font-medium text-base-content/50 mb-1">Display name</label>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">
+                    Display name
+                  </label>
                   <input
                     type="text"
                     name="profile[display_name]"
@@ -99,7 +110,9 @@
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-base-content/50 mb-1">Location</label>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">
+                    Location
+                  </label>
                   <input
                     type="text"
                     name="profile[location]"
@@ -111,7 +124,9 @@
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-base-content/50 mb-1">Birthday</label>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">
+                    Birthday
+                  </label>
                   <input
                     type="date"
                     name="profile[birthday]"
@@ -121,7 +136,9 @@
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-base-content/50 mb-1">Interests</label>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">
+                    Interests
+                  </label>
                   <input
                     type="text"
                     name="profile[interests]"
@@ -133,7 +150,9 @@
                 </div>
 
                 <div>
-                  <label class="block text-xs font-medium text-base-content/50 mb-1">Timezone</label>
+                  <label class="block text-xs font-medium text-base-content/50 mb-1">
+                    Timezone
+                  </label>
                   <select
                     name="profile[timezone]"
                     class="w-full bg-base-200 border border-base-300 rounded-md px-3 py-1.5 text-sm text-base-content focus:outline-none focus:border-base-content/30 transition-colors"
@@ -145,7 +164,9 @@
                 </div>
 
                 <div class="flex gap-2 pt-1">
-                  <button type="submit" class="btn btn-primary btn-xs rounded-md px-3">Save</button>
+                  <button type="submit" class="btn btn-primary btn-xs rounded-md px-3">
+                    Save
+                  </button>
                   <button
                     type="button"
                     phx-click="cancel_editing"
@@ -156,7 +177,7 @@
                 </div>
               </form>
 
-            <%!-- Read-only profile info --%>
+              <%!-- Read-only profile info --%>
             <% else %>
               <div class="space-y-3">
                 <div>
@@ -200,7 +221,9 @@
                   <% end %>
                   <div class="flex items-center gap-1.5">
                     <.icon name="hero-calendar" class="size-3.5 flex-shrink-0" />
-                    <span>Member since {Calendar.strftime(@profile_membership.joined_at, "%B %Y")}</span>
+                    <span>
+                      Member since {Calendar.strftime(@profile_membership.joined_at, "%B %Y")}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -227,7 +250,11 @@
                   phx-value-url={url}
                   class="aspect-square bg-base-200 relative overflow-hidden block rounded focus:outline-none"
                 >
-                  <img src={url} class="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-200" alt="" />
+                  <img
+                    src={url}
+                    class="absolute inset-0 w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+                    alt=""
+                  />
                   <%= if pm.media_item.kind == "video" do %>
                     <div class="absolute inset-0 flex items-center justify-center bg-black/20">
                       <.icon name="hero-play-solid" class="size-4 text-white" />
@@ -268,16 +295,33 @@
               <% end %>
             </div>
             <%= if pinned_post.body && pinned_post.body != "" do %>
-              <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{String.trim(pinned_post.body)}</p>
+              <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">
+                {String.trim(pinned_post.body)}
+              </p>
             <% end %>
             <%= if pinned_post.post_media != [] do %>
               <% media_count = length(pinned_post.post_media) %>
-              <div class={["rounded-lg overflow-hidden", if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")]}>
+              <div class={[
+                "rounded-lg overflow-hidden",
+                if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")
+              ]}>
                 <%= for pm <- pinned_post.post_media do %>
                   <% url = Map.get(@media_urls, pm.media_item.id) %>
-                  <div class={["relative bg-base-200", if(media_count == 1, do: "max-h-72", else: "aspect-square")]}>
+                  <div class={[
+                    "relative bg-base-200",
+                    if(media_count == 1, do: "max-h-72", else: "aspect-square")
+                  ]}>
                     <%= if url do %>
-                      <img src={url} class={["w-full object-cover cursor-zoom-in", if(media_count == 1, do: "max-h-72", else: "h-full absolute inset-0")]} phx-click="open_lightbox" phx-value-url={url} alt="" />
+                      <img
+                        src={url}
+                        class={[
+                          "w-full object-cover cursor-zoom-in",
+                          if(media_count == 1, do: "max-h-72", else: "h-full absolute inset-0")
+                        ]}
+                        phx-click="open_lightbox"
+                        phx-value-url={url}
+                        alt=""
+                      />
                     <% else %>
                       <div class="w-full h-28 flex items-center justify-center">
                         <p class="text-xs text-base-content/40">Processing…</p>
@@ -313,25 +357,44 @@
                         class="text-xs text-base-content/20 hover:text-base-content/50 opacity-0 group-hover/post:opacity-100 transition-all flex items-center gap-1"
                         title="Pin to profile"
                       >
-                        <.icon name="hero-bookmark" class="size-3.5" />
-                        Pin
+                        <.icon name="hero-bookmark" class="size-3.5" /> Pin
                       </button>
                     <% end %>
                   </div>
                 </div>
 
                 <%= if post.body && post.body != "" do %>
-                  <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">{String.trim(post.body)}</p>
+                  <p class="text-sm text-base-content/85 whitespace-pre-wrap leading-relaxed">
+                    {String.trim(post.body)}
+                  </p>
                 <% end %>
 
                 <%= if post.post_media != [] do %>
                   <% media_count = length(post.post_media) %>
-                  <div class={["rounded-lg overflow-hidden", if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")]}>
+                  <div class={[
+                    "rounded-lg overflow-hidden",
+                    if(media_count == 1, do: "", else: "grid grid-cols-2 gap-0.5")
+                  ]}>
                     <%= for pm <- post.post_media do %>
                       <% url = Map.get(@media_urls, pm.media_item.id) %>
-                      <div class={["relative bg-base-200", if(media_count == 1, do: "max-h-72", else: "aspect-square")]}>
+                      <div class={[
+                        "relative bg-base-200",
+                        if(media_count == 1, do: "max-h-72", else: "aspect-square")
+                      ]}>
                         <%= if url do %>
-                          <img src={url} class={["w-full object-cover cursor-zoom-in", if(media_count == 1, do: "max-h-72", else: "h-full absolute inset-0")]} phx-click="open_lightbox" phx-value-url={url} alt="" />
+                          <img
+                            src={url}
+                            class={[
+                              "w-full object-cover cursor-zoom-in",
+                              if(media_count == 1,
+                                do: "max-h-72",
+                                else: "h-full absolute inset-0"
+                              )
+                            ]}
+                            phx-click="open_lightbox"
+                            phx-value-url={url}
+                            alt=""
+                          />
                           <%= if pm.media_item.kind == "video" do %>
                             <div class="absolute inset-0 flex items-center justify-center">
                               <div class="w-10 h-10 rounded-full bg-black/50 flex items-center justify-center">
@@ -364,7 +427,6 @@
           <% end %>
         <% end %>
       </div>
-
     </div>
   </div>
 </.app_shell>
