@@ -1,5 +1,5 @@
 ---
-"share-circle": patch
+"share_circle": patch
 ---
 
 Add in OAS generation from server routes

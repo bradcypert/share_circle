@@ -1,5 +1,5 @@
 ---
-"share-circle": minor
+"share_circle": minor
 ---
 
 Add supervised (child) account type with guardian-managed promotion flow
